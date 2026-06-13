@@ -39,7 +39,7 @@ export default defineConfig({
   /* Output artifacts folder instead of root-level test-results/ */
   outputDir: 'playwright/output',
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: [{ name: 'html', options: { outputFolder: 'playwright/report' } }],
+  reporter: [['html', { outputFolder: 'playwright/report' }]],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
