@@ -17,5 +17,12 @@ if (!isLocal) {
   process.exit(1);
 }
 
+// Ensure shadow database exists (Prisma 7 requires separate shadow DB for db push)
+try {
+  execSync('docker exec worldwideview-db-1 psql -U postgres -c "CREATE DATABASE worldwideview_shadow;" 2>/dev/null', { stdio: 'pipe' });
+} catch (e) {
+  // Database likely already exists
+}
+
 console.log("🔒 Local database detected. Safely running prisma db push...");
 execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit' });
