@@ -17,11 +17,23 @@ if (!isLocal) {
   process.exit(1);
 }
 
-// Ensure shadow database exists (Prisma 7 requires separate shadow DB for db push)
+// Derive shadow database name from the main database name
+const dbNameMatch = dbUrl.match(/\/([^/?]+)(\?|$)/);
+const mainDbName = dbNameMatch ? dbNameMatch[1] : 'worldwideview';
+const shadowDbName = `${mainDbName}_shadow`;
+
+// Ensure shadow database exists (Prisma 7 requires separate shadow DB for db push).
+// Find the PostgreSQL container dynamically by image ancestor instead of hardcoding.
 try {
-  execSync('docker exec worldwideview-db-1 psql -U postgres -c "CREATE DATABASE worldwideview_shadow;" 2>/dev/null', { stdio: 'pipe' });
-} catch (e) {
-  // Database likely already exists
+  const containerName = execSync(
+    'docker ps --filter "ancestor=postgres" --format "{{.Names}}" | head -1',
+    { encoding: 'utf8' },
+  ).trim();
+  if (containerName) {
+    execSync(`docker exec ${containerName} psql -U postgres -c "CREATE DATABASE ${shadowDbName};"`, { stdio: 'pipe' });
+  }
+} catch {
+  // Database already exists — this is expected on subsequent runs.
 }
 
 console.log("🔒 Local database detected. Safely running prisma db push...");
