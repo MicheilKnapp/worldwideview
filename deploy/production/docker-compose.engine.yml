@@ -13,6 +13,8 @@ services:
       - DOWNLOAD_SEEDERS=true
       - GITHUB_PAT=${GITHUB_PAT:-}
       - DB_PATH=/app/data/engine.db
+      - JWKS_URL=https://marketplace.worldwideview.dev/api/auth/jwks
+      - WWV_SKIP_WS_AUTH=true
     depends_on:
       wwv-redis:
         condition: service_healthy
