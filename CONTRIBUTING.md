@@ -4,8 +4,6 @@ Thank you for your interest in contributing to **WorldWideView** — a modular, 
 
 This project is licensed under the [Elastic License 2.0](./LICENSE). By submitting a contribution, you agree that your code will be made available under those same terms.
 
-Please note that this project has a [Code of Conduct](./CODE_OF_CONDUCT.md). By participating, you agree to uphold its terms.
-
 ---
 
 ## Table of Contents
@@ -32,15 +30,15 @@ Please note that this project has a [Code of Conduct](./CODE_OF_CONDUCT.md). By 
    ```
 3. **Install dependencies**:
    ```bash
-   pnpm install
+   npm install
    ```
 4. **Generate environment file** (auto-creates `.env.local` with `AUTH_SECRET`):
    ```bash
-   pnpm run setup
+   npm run setup
    ```
 5. **Start the dev server**:
    ```bash
-   pnpm dev
+   npm run dev
    ```
 
 Visit `http://localhost:3000` to confirm everything is running.
@@ -49,15 +47,10 @@ Visit `http://localhost:3000` to confirm everything is running.
 
 ## Development Setup
 
-| Requirement   | Version |
-|---------------|---------|
-| Node.js       | 18+     |
-| pnpm          | 9+      |
-| Docker Desktop| Latest  |
-
-Use `.nvmrc` (at project root) for Node version management -- run `nvm use` in the project directory.
-
-[Docker Desktop](https://www.docker.com/products/docker-desktop/) or a Docker installation is required to run the full development stack (PostgreSQL, Redis, data engine, Caddy reverse proxy) via `docker compose`.
+| Requirement | Version |
+|-------------|---------|
+| Node.js     | 18+     |
+| npm         | 9+      |
 
 See [`docs/SETUP.md`](docs/SETUP.md) for detailed environment setup, including Cesium Ion token configuration.
 
@@ -89,8 +82,6 @@ Ways you can help:
 - 🧪 **Tests** — Expand Vitest coverage
 
 For large features, **open an issue first** to discuss the design before writing code.
-
-New to the project? Look for issues labeled [`good first issue`](https://github.com/silvertakana/worldwideview/labels/good%20first%20issue) or [`help wanted`](https://github.com/silvertakana/worldwideview/labels/help%20wanted) -- they are specifically scoped for new contributors.
 
 ---
 
@@ -143,7 +134,7 @@ refactor: extract billboard factory from CesiumMap
 ## Pull Request Process
 
 1. Ensure your branch is up to date with `main`.
-2. Run tests and confirm they pass: `pnpm test`
+2. Run tests and confirm they pass: `npm test`
 3. Fill out the [PR template](.github/PULL_REQUEST_TEMPLATE.md) completely.
 4. Request a review — PRs need at least one approval before merging.
 5. Squash commits on merge if the history is noisy.
@@ -152,11 +143,9 @@ refactor: extract billboard factory from CesiumMap
 
 ## Running Tests
 
-\`\`\`bash
-pnpm test            # Unit & integration tests (Vitest)
-pnpm test:e2e        # End-to-end tests (Playwright)
-pnpm test:mutate     # Mutation tests (Stryker)
-pnpm lint            # Code quality checks (ESLint)
-\`\`\`
+```bash
+npm test          # Run all tests via Vitest
+npm run test:ui   # Open Vitest UI (interactive)
+```
 
 Tests live alongside source files in `__tests__/` directories or as `.test.ts` files.

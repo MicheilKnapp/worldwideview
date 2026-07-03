@@ -1,96 +1,24 @@
-area:api:
+area:frontend:
   - changed-files:
-      - any-glob-to-any-file: src/app/api/**/*
-
-area:ui:
+      - any-glob-to-any-file: src/**/*
+      - any-glob-to-any-file: app/**/*
+area:infra:
   - changed-files:
-      - any-glob-to-any-file:
-          - src/components/**/*
-          - src/app/{login,setup,test}/**/*
-          - src/styles/**/*
-
-area:engine:
-  - changed-files:
-      - any-glob-to-any-file: src/core/**/*
-
-area:plugins:
-  - changed-files:
-      - any-glob-to-any-file:
-          - packages/wwv-plugin-sdk/**/*
-          - src/plugins/**/*
-          - src/core/plugins/**/*
-
-area:marketplace:
-  - changed-files:
-      - any-glob-to-any-file:
-          - src/app/marketplace/**/*
-          - src/components/marketplace/**/*
-
-area:auth:
-  - changed-files:
-      - any-glob-to-any-file:
-          - src/app/api/auth/**/*
-          - src/app/login/**/*
-          - src/app/setup/**/*
-
-area:ci:
-  - changed-files:
-      - any-glob-to-any-file:
-          - .github/**/*
-
-area:deps:
-  - changed-files:
-      - any-glob-to-any-file:
-          - package.json
-          - pnpm-lock.yaml
-          - pnpm-workspace.yaml
-          - next.config.ts
-
-area:db:
-  - changed-files:
-      - any-glob-to-any-file: prisma/**/*
-
-area:docs:
-  - changed-files:
-      - any-glob-to-any-file:
-          - '**/*.md'
-          - docs/**/*
-
-area:tests:
-  - changed-files:
-      - any-glob-to-any-file:
-          - tests/**/*
-          - playwright.config.ts
-          - playwright.*.config.ts
-          - vitest.config.ts
-          - stryker.config.json
-          - '**/*.test.ts'
-          - '**/*.spec.ts'
-
-area:deploy:
-  - changed-files:
-      - any-glob-to-any-file:
-          - Dockerfile*
-          - docker-compose*.yml
-          - docker/**/*
-          - deploy/**/*
-          - self-host/**/*
-          - docker-entrypoint.sh
-
+      - any-glob-to-any-file: .github/**/*
+      - any-glob-to-any-file: Dockerfile*
+      - any-glob-to-any-file: docker-compose*.yml
 area:cli:
   - changed-files:
-      - any-glob-to-any-file:
-          - packages/wwv-cli/**/*
-          - scripts/**/*
-
-area:config:
+      - any-glob-to-any-file: packages/wwv-cli/**/*
+area:plugins:
   - changed-files:
-      - any-glob-to-any-file:
-          - .env.example
-          - .dockerignore
-          - .gitignore
-          - .nvmrc
-          - eslint.config.mjs
-          - tsconfig*.json
-          - .config/**/*
-          - .githooks/**/*
+      - any-glob-to-any-file: packages/wwv-plugin-sdk/**/*
+area:deps:
+  - changed-files:
+      - any-glob-to-any-file: package.json
+      - any-glob-to-any-file: pnpm-lock.yaml
+      - any-glob-to-any-file: pnpm-workspace.yaml
+area:docs:
+  - changed-files:
+      - any-glob-to-any-file: "*.md"
+      - any-glob-to-any-file: docs/**/*
