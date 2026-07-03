@@ -1,0 +1,17 @@
+name: Test 04 Outputs Expr
+on:
+  push:
+    branches: [test/gha-binsearch-1]
+jobs:
+  test:
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    runs-on: ubuntu-latest
+    steps:
+      - id: build
+        run: echo "digest=abc123" >> "$GITHUB_OUTPUT"
