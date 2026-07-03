@@ -1,0 +1,11 @@
+name: Test 24 Secret Not Empty
+on:
+  push:
+    branches: [test/gha-binsearch-1]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "hello"
+      - if: ${{ secrets.MY_SECRET != '' }}
+        run: echo "secret not empty"

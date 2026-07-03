@@ -1,0 +1,11 @@
+name: Test 23 Sha Not Empty
+on:
+  push:
+    branches: [test/gha-binsearch-1]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "hello"
+      - if: ${{ github.sha != '' }}
+        run: echo "sha not empty"

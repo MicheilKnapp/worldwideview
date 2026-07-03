@@ -1,0 +1,11 @@
+name: Test 22 Vars Not Empty
+on:
+  push:
+    branches: [test/gha-binsearch-1]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "hello"
+      - if: ${{ vars.MY_VAR != '' }}
+        run: echo "var not empty"
