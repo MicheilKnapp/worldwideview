@@ -25,6 +25,11 @@ vi.mock("@/lib/geocodingRateLimit", () => ({
     redisSlidingWindow: vi.fn(),
 }));
 
+vi.mock("@/lib/mcpRateLimit", () => ({
+    resolveMcpTier: async () => "free",
+    getRateLimitConfig: () => ({ limit: 120, windowMs: 60_000 }),
+}));
+
 vi.mock("@modelcontextprotocol/sdk/server/mcp.js", () => {
     const McpServer = vi.fn(function McpServerMock(this: unknown) {
         return {

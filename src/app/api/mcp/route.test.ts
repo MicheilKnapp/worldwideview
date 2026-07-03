@@ -27,6 +27,11 @@ vi.mock("@/lib/apiKeyAuth", () => ({
     authenticateApiKey: vi.fn(),
 }));
 
+vi.mock("@/lib/mcpRateLimit", () => ({
+    resolveMcpTier: async () => "free",
+    getRateLimitConfig: () => ({ limit: 120, windowMs: 60_000 }),
+}));
+
 // The edition mock is mutable — individual tests flip isDemo via vi.doMock
 // inside their own dynamic-import describe block (see "Demo gate" section).
 // For the default non-demo path we declare isDemo: false here.

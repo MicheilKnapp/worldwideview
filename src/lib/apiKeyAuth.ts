@@ -88,6 +88,8 @@ export interface GeneratedKey {
 export interface AuthenticatedKey {
     userId: string;
     keyId: string;
+    /** Organization/tenant ID associated with this key, if any. */
+    tenantId: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -142,11 +144,11 @@ export async function authenticateApiKey(
 
     // DB outage guard (TRANS-02): a rejected Prisma call is treated as a miss
     // so the caller receives null (-> 401) rather than an unhandled rejection.
-    let row: { id: string; userId: string; hashedSecret: string } | null;
+    let row: { id: string; userId: string; hashedSecret: string; tenantId: string | null } | null;
     try {
         row = await prisma.userApiKey.findUnique({
             where: { prefix },
-            select: { id: true, userId: true, hashedSecret: true },
+            select: { id: true, userId: true, hashedSecret: true, tenantId: true },
         });
     } catch (err) {
         console.warn("[apiKeyAuth] DB error during key lookup:", err instanceof Error ? err.name : "unknown");
@@ -164,5 +166,5 @@ export async function authenticateApiKey(
 
     recordLastUsed(row.id);
 
-    return { userId: row.userId, keyId: row.id };
+    return { userId: row.userId, keyId: row.id, tenantId: row.tenantId };
 }

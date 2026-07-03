@@ -26,6 +26,7 @@ import { publishSessionCatalog } from "@/lib/mcpSessionCatalog";
 import type { SessionCatalog } from "@/lib/mcpSessionCatalog";
 import { resolveActiveSessionId } from "@/lib/globeCommandQueue";
 import { globeCommandsLimiter, getClientIp } from "@/lib/rateLimiters";
+import { redisSlidingWindow } from "@/lib/geocodingRateLimit";
 import { isDemo } from "@/core/edition";
 
 // ---------------------------------------------------------------------------
@@ -56,6 +57,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     // Gate 3: Dual-auth -- Better Auth session PRIMARY, Bearer apiKey FALLBACK
     let userId: string | null = null;
+    let keyId: string | null = null;
 
     const session = await getServerSession();
     if (session?.user?.id) {
@@ -64,11 +66,30 @@ export async function POST(request: Request): Promise<NextResponse> {
         const apiKeyAuth = await authenticateApiKey(request);
         if (apiKeyAuth) {
             userId = apiKeyAuth.userId;
+            keyId = apiKeyAuth.keyId;
         }
     }
 
     if (!userId) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Per-key rate limit when using API key auth (SEC-03).
+    if (keyId) {
+        const keyResult = await redisSlidingWindow(
+            `mcp:catalog:ratelimit:key:${keyId}`,
+            60,
+            60_000,
+        );
+        if (!keyResult.allowed) {
+            return NextResponse.json(
+                { error: "Too many requests" },
+                {
+                    status: 429,
+                    headers: { "Retry-After": String(Math.ceil(keyResult.retryAfterMs / 1_000)) },
+                },
+            );
+        }
     }
 
     // Gate 4: sessionId UUID guard

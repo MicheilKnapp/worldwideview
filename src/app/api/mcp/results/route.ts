@@ -21,6 +21,7 @@ import { getServerSession } from "@/lib/ba-session";
 import { authenticateApiKey } from "@/lib/apiKeyAuth";
 import { postToolResult } from "@/lib/mcpRelay";
 import { mcpResultsLimiter, getClientIp } from "@/lib/rateLimiters";
+import { redisSlidingWindow } from "@/lib/geocodingRateLimit";
 import { isDemo } from "@/core/edition";
 
 const SESSION_ID_RE = /^[0-9a-f-]{36}$/i;
@@ -28,6 +29,10 @@ const REQUEST_ID_RE = /^[0-9a-f-]{36}$/i;
 
 /** Pre-parse body size cap (1 MB). The post-parse cap inside postToolResult is 512 KB. */
 const MAX_BODY_BYTES = 1 * 1024 * 1024;
+
+/** Per-key rate limit for results when using API key auth (SEC-03). */
+const RESULTS_PER_KEY_LIMIT = 120;
+const RESULTS_WINDOW_MS = 60_000;
 
 export async function POST(request: Request): Promise<NextResponse> {
     // Rate limit before any auth or DB work.
@@ -41,6 +46,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     // Dual-auth: Better Auth session PRIMARY, Bearer API key FALLBACK.
     // userId is resolved exclusively from the auth result -- never from the body.
     let userId: string | null = null;
+    let keyId: string | null = null;
 
     const session = await getServerSession();
     if (session?.user?.id) {
@@ -49,11 +55,30 @@ export async function POST(request: Request): Promise<NextResponse> {
         const apiKeyAuth = await authenticateApiKey(request);
         if (apiKeyAuth) {
             userId = apiKeyAuth.userId;
+            keyId = apiKeyAuth.keyId;
         }
     }
 
     if (!userId) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Per-key rate limit when using API key auth (complements the IP gate above).
+    if (keyId) {
+        const keyResult = await redisSlidingWindow(
+            `mcp:results:ratelimit:key:${keyId}`,
+            RESULTS_PER_KEY_LIMIT,
+            RESULTS_WINDOW_MS,
+        );
+        if (!keyResult.allowed) {
+            return NextResponse.json(
+                { error: "Too many requests" },
+                {
+                    status: 429,
+                    headers: { "Retry-After": String(Math.ceil(keyResult.retryAfterMs / 1_000)) },
+                },
+            );
+        }
     }
 
     let body: unknown;

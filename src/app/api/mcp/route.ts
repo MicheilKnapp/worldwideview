@@ -32,6 +32,7 @@ import { authenticateApiKey } from "@/lib/apiKeyAuth";
 import { createMcpServer, registerOrientationPrompts } from "@/lib/mcp/server";
 import { mcpLimiter, getClientIp } from "@/lib/rateLimiters";
 import { redisSlidingWindow } from "@/lib/geocodingRateLimit";
+import { resolveMcpTier, getRateLimitConfig } from "@/lib/mcpRateLimit";
 import {
     demoBlockedResponse,
     unauthorizedResponse,
@@ -56,8 +57,10 @@ import { registerDiscoveryTools } from "./discoveryTools";
 
 export const maxDuration = 30;
 
-// Per-key rate-limit budget (SEC-02): 120 requests per 60-second window.
-const MCP_KEY_LIMIT = 120;
+// Per-key rate-limit budgets are now tier-based (SEC-02, SEC-03).
+// Default fallback: 120 requests per 60-second window for legacy keys without
+// an org membership.
+const MCP_KEY_LIMIT_FALLBACK = 120;
 const MCP_WINDOW_MS = 60_000;
 
 // ---------------------------------------------------------------------------
@@ -145,13 +148,15 @@ async function handleMcpRequest(request: Request): Promise<Response> {
     }
 
     // ------------------------------------------------------------------
-    // Gate 3: Redis per-key rate limit (SEC-02).
-    // 120 req / 60s per authenticated key, complementing the coarse IP
-    // gate above. Fails OPEN on Redis outage so a broken Redis never
-    // blocks legit users.
+    // Gate 3: Tier-aware Redis per-key rate limit (SEC-02, SEC-03).
+    // Resolves the user's org tier and applies the corresponding
+    // sliding-window budget. Fails OPEN on Redis/DB outage so a broken
+    // rate limiter never blocks legit users.
     // ------------------------------------------------------------------
+    const mcpTier = await resolveMcpTier(authResult.userId, authResult.tenantId);
+    const tierConfig = getRateLimitConfig(mcpTier);
     const keyRateKey = `mcp:ratelimit:key:${authResult.keyId}`;
-    const keyLimit = await redisSlidingWindow(keyRateKey, MCP_KEY_LIMIT, MCP_WINDOW_MS);
+    const keyLimit = await redisSlidingWindow(keyRateKey, tierConfig.limit, tierConfig.windowMs);
     if (!keyLimit.allowed) {
         return rateLimitedResponse(keyLimit.retryAfterMs);
     }

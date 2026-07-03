@@ -187,6 +187,6 @@ describe("authenticateApiKey", () => {
         expect(result).not.toBeNull();
         expect(result).not.toHaveProperty("hashedSecret");
         expect(result).not.toHaveProperty("secret");
-        expect(Object.keys(result!)).toEqual(["userId", "keyId"]);
+        expect(Object.keys(result!)).toEqual(["userId", "keyId", "tenantId"]);
     });
 });
