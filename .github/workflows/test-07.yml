@@ -1,0 +1,12 @@
+name: Test 07 Env Block
+on:
+  push:
+    branches: [test/gha-binsearch-1]
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ${{ env.REGISTRY }}
