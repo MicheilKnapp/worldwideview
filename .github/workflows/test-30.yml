@@ -1,0 +1,10 @@
+name: Test 30 Job If Secret
+on:
+  push:
+    branches: [test/gha-binsearch-1]
+jobs:
+  test:
+    if: ${{ secrets.MY_SECRET != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "hello"
