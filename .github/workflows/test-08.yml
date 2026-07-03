@@ -1,0 +1,11 @@
+name: Test 08 Paths Filter
+on:
+  push:
+    branches: [test/gha-binsearch-1]
+    paths:
+      - "src/**"
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "hello"
