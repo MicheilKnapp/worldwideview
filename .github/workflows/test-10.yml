@@ -1,0 +1,9 @@
+name: Test 10 No Paths
+on:
+  push:
+    branches: ["test/gha-binsearch-1"]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "hello"
