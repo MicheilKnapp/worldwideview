@@ -1,0 +1,9 @@
+name: Test 27 Secret In Run
+on:
+  push:
+    branches: [test/gha-binsearch-1]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ${{ secrets.MY_SECRET }}

@@ -1,0 +1,11 @@
+name: Test 28 Secret In With
+on:
+  push:
+    branches: [test/gha-binsearch-1]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
