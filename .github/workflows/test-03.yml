@@ -1,0 +1,16 @@
+name: Test 03 Outputs
+on:
+  push:
+    branches: [test/gha-binsearch-1]
+jobs:
+  test:
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    outputs:
+      digest: ''
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "hello"
