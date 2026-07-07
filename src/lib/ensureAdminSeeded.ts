@@ -1,6 +1,6 @@
 "use server";
 
-import { hashPassword } from "@better-auth/utils/password";
+import { hashPassword } from "better-auth/crypto";
 import { prisma } from "@/lib/db";
 
 /**

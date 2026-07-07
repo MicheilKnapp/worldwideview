@@ -12,6 +12,10 @@ vi.mock("@/lib/auth-client", () => ({
     },
 }));
 
+vi.mock("@/lib/auth/migrate-legacy-user", () => ({
+    migrateLegacyUserIfNeeded: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock("@/core/edition", () => ({
     isDemo: false,
 }));

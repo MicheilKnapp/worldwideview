@@ -1,9 +1,8 @@
 /**
  * Server-side session helpers for Better Auth.
  *
- * These functions replace NextAuth's `getServerSession` (from next-auth) with
- * Better Auth's `auth.api.getSession()`. They require Node.js runtime because
- * they call Prisma to validate the session cookie against the database.
+ * Uses Better Auth's `auth.api.getSession()`. Requires Node.js runtime
+ * because Prisma validates the session cookie against the database.
  *
  * @module ba-session
  */

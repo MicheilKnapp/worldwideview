@@ -11,6 +11,12 @@ services:
         - NEXT_PUBLIC_BING_MAPS_KEY=${NEXT_PUBLIC_BING_MAPS_KEY:-}
         - NEXT_PUBLIC_CESIUM_ION_TOKEN=${NEXT_PUBLIC_CESIUM_ION_TOKEN:-}
         - NEXT_PUBLIC_ADSENSE_CLIENT_ID=${NEXT_PUBLIC_ADSENSE_CLIENT_ID:-}
+        - NEXT_PUBLIC_HUB_REDIRECT_URL=${NEXT_PUBLIC_HUB_REDIRECT_URL:-}
+        - NEXT_PUBLIC_WWV_TENANT_DOMAIN=${NEXT_PUBLIC_WWV_TENANT_DOMAIN:-}
+        - NEXT_PUBLIC_HUB_URL=${NEXT_PUBLIC_HUB_URL:-}
+        - NEXT_PUBLIC_DOCS_URL=${NEXT_PUBLIC_DOCS_URL:-}
+        - NEXT_PUBLIC_LEGAL_URL=${NEXT_PUBLIC_LEGAL_URL:-}
+        - NEXT_PUBLIC_ANALYTICS_SCRIPT_URL=${NEXT_PUBLIC_ANALYTICS_SCRIPT_URL:-}
     ports:
       - "3000:3000"
     volumes:
@@ -20,7 +26,7 @@ services:
       - path: .env
         required: false
     environment:
-      - "AUTH_SECRET=${AUTH_SECRET:-default_secret_for_local_dev}"
+      - "BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-default_secret_for_local_dev}"
       - "ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY:-local_dev_encryption_key_change_in_prod}"
       - "WWV_DEMO_ADMIN_SECRET=${WWV_DEMO_ADMIN_SECRET:-}"
       - "WWV_BRIDGE_TOKEN=${WWV_BRIDGE_TOKEN:-}"

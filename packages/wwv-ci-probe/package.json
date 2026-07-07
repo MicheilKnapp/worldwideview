@@ -19,11 +19,11 @@
   },
   "dependencies": {
     "commander": "^15.0.0",
-    "ioredis": "^5.4.1",
+    "ioredis": "^5.11.1",
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/node": "^25.9.1",
+    "@types/node": "^26.0.1",
     "@types/ws": "^8.5.13",
     "typescript": "^5.0.0"
   }
