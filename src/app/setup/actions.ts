@@ -1,6 +1,6 @@
 "use server";
 
-import { hashSync } from "bcryptjs";
+import { hashPassword } from "@better-auth/utils/password";
 import { prisma } from "@/lib/db";
 import { isDemo } from "@/core/edition";
 import { evaluatePasswordStrength, MIN_PASSWORD_SCORE } from "@/lib/password-strength";
@@ -42,7 +42,7 @@ export async function createAdminAccount(formData: FormData): Promise<SetupResul
     }
 
     const userId = crypto.randomUUID();
-    const hashedPassword = hashSync(password, 12);
+    const hashedPassword = await hashPassword(password);
 
     await prisma.$transaction([
         prisma.betterAuthUser.create({
