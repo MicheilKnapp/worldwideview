@@ -161,6 +161,7 @@ function SetupForm() {
                 <div className={styles.card}>
                     <div className={styles.logo}>W</div>
                     <h1 className={styles.title}>Welcome to WorldWideView</h1>
+                    <p style={{ margin: "-0.5rem 0 0.75rem", fontSize: "0.85rem", opacity: 0.7 }}>Knapp Electric Questioner Fork</p>
                     <p className={styles.subtitle}>Checking setup state...</p>
                 </div>
             </div>
@@ -191,18 +192,19 @@ function SetupForm() {
             <div className={styles.card}>
                 <div className={styles.logo}>W</div>
                 <h1 className={styles.title}>Welcome to WorldWideView</h1>
-                <p className={styles.subtitle}>Create your admin account to get started</p>
+                <p style={{ margin: "-0.5rem 0 0.75rem", fontSize: "0.85rem", opacity: 0.7 }}>Knapp Electric Questioner Fork</p>
+                <p className={styles.subtitle}>Create your user account to get started</p>
 
                 {autoSeed.error && <p className={styles.error}>{autoSeed.error}</p>}
 
                 <form onSubmit={handleLocalSubmit} className={styles.form}>
                     <label className={styles.label} htmlFor="name">
                         Display Name
-                        <input id="name" name="name" type="text" required className={styles.input} placeholder="Admin" />
+                        <input id="name" name="name" type="text" required className={styles.input} placeholder="User" />
                     </label>
                     <label className={styles.label} htmlFor="email">
                         Email
-                        <input id="email" name="email" type="email" required className={styles.input} placeholder="admin@example.com" />
+                        <input id="email" name="email" type="email" required className={styles.input} placeholder="user@example.com" />
                     </label>
                     <label className={styles.label} htmlFor="password">
                         Password
@@ -214,7 +216,7 @@ function SetupForm() {
                     </label>
                     {error && <p className={styles.error}>{error}</p>}
                     <button type="submit" disabled={loading} className={styles.button}>
-                        {loading ? "Creating..." : "Create Admin Account"}
+                        {loading ? "Creating..." : "Create User Account"}
                     </button>
                 </form>
             </div>
