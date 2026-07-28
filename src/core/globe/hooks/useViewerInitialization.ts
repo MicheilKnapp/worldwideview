@@ -28,18 +28,20 @@ export function useViewerInitialization(sceneSettings: any) {
         // Configure Screen Space Camera
         const sscc = viewer.scene.screenSpaceCameraController;
         sscc.tiltEventTypes = [
-            CameraEventType.WHEEL,
             CameraEventType.MIDDLE_DRAG,
             CameraEventType.RIGHT_DRAG,
             CameraEventType.PINCH,
             { eventType: CameraEventType.LEFT_DRAG, modifier: KeyboardEventModifier.CTRL },
-            { eventType: CameraEventType.RIGHT_DRAG, modifier: KeyboardEventModifier.CTRL }
+            { eventType: CameraEventType.RIGHT_DRAG, modifier: KeyboardEventModifier.CTRL },
+            // Shift + wheel/two-finger slide = tilt. Plain WHEEL is reserved
+            // for zoom below -- Windows precision touchpads only ever report
+            // two-finger slides as plain wheel events (no separate "pinch"
+            // signal the way macOS synthesizes ctrl+wheel for pinch), so
+            // giving WHEEL two different meanings needs a modifier to
+            // disambiguate on that platform.
+            { eventType: CameraEventType.WHEEL, modifier: KeyboardEventModifier.SHIFT },
         ];
-        // WHEEL (mouse-wheel scroll and trackpad two-finger vertical slide --
-        // the browser reports both as the same event, so they can't be told
-        // apart) now controls tilt instead of zoom. Zoom still works via
-        // PINCH (trackpad pinch gesture / touch pinch).
-        sscc.zoomEventTypes = [CameraEventType.PINCH];
+        sscc.zoomEventTypes = [CameraEventType.WHEEL, CameraEventType.PINCH];
 
         if ("ontouchstart" in window || navigator.maxTouchPoints > 0) {
             (sscc as any)._zoomFactor = 5;
