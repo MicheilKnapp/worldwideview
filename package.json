@@ -28,6 +28,7 @@
     "lint": "eslint . && node scripts/lint-urls.mjs",
     "db:reset": "npx prisma migrate reset --force",
     "db:prune": "node scripts/db-prune.mjs",
+    "cleanup:guests": "node scripts/cleanup-guest-accounts.mjs",
     "generate": "prisma generate"
   },
   "dependencies": {

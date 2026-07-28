@@ -91,6 +91,7 @@ export default function LoginForm() {
         <div className={styles.card}>
           <div className={styles.logo}>W</div>
           <h1 className={styles.title}>Sign in to WorldWideView</h1>
+          <p style={{ margin: "-0.5rem 0 0.75rem", fontSize: "0.85rem", opacity: 0.7 }}>Knapp Electric Questioner Fork</p>
           <p className={styles.subtitle}>Enter your credentials to continue</p>
 
           <form onSubmit={handleSubmit} method="post" className={styles.form}>
@@ -102,7 +103,7 @@ export default function LoginForm() {
                 type="email"
                 required
                 className={styles.input}
-                placeholder={isDemo ? "admin@worldwideview.local" : "admin@example.com"}
+                placeholder={isDemo ? "user@worldwideview.local" : "user@example.com"}
               />
             </label>
 
