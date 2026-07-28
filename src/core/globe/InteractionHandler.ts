@@ -38,38 +38,6 @@ export function setupInteractionHandlers(
     const {canvas} = viewer.scene;
     const handler = new ScreenSpaceEventHandler(canvas);
 
-    // TEMPORARY DIAGNOSTIC — logs raw input events reaching the canvas, to
-    // debug a trackpad drag-to-rotate issue. Remove once resolved.
-    let debugMoveCount = 0;
-    const debugMouseDown = (e: MouseEvent) => {
-        debugMoveCount = 0;
-        console.log("[InputDebug] mousedown", { button: e.button, buttons: e.buttons, x: e.clientX, y: e.clientY });
-    };
-    const debugMouseMove = (e: MouseEvent) => {
-        if (e.buttons === 0) return; // only log while a button is held
-        if (debugMoveCount++ > 8) return;
-        console.log("[InputDebug] mousemove (button held)", { buttons: e.buttons, x: e.clientX, y: e.clientY });
-    };
-    const debugMouseUp = (e: MouseEvent) => {
-        console.log("[InputDebug] mouseup", { button: e.button, x: e.clientX, y: e.clientY });
-    };
-    const debugPointerDown = (e: PointerEvent) => {
-        console.log("[InputDebug] pointerdown", { pointerType: e.pointerType, button: e.button, buttons: e.buttons, x: e.clientX, y: e.clientY });
-    };
-    const debugPointerUp = (e: PointerEvent) => {
-        console.log("[InputDebug] pointerup", { pointerType: e.pointerType, x: e.clientX, y: e.clientY });
-    };
-    const debugWheel = (e: WheelEvent) => {
-        console.log("[InputDebug] wheel", { deltaX: e.deltaX, deltaY: e.deltaY, deltaMode: e.deltaMode, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey });
-    };
-    canvas.addEventListener("mousedown", debugMouseDown);
-    canvas.addEventListener("mousemove", debugMouseMove);
-    canvas.addEventListener("mouseup", debugMouseUp);
-    canvas.addEventListener("pointerdown", debugPointerDown);
-    canvas.addEventListener("pointerup", debugPointerUp);
-    canvas.addEventListener("wheel", debugWheel);
-    // END TEMPORARY DIAGNOSTIC
-
     /** Currently expanded stack id (only one at a time). */
     let expandedStackId: string | null = null;
 
@@ -186,12 +154,5 @@ export function setupInteractionHandlers(
         if (canvas && canvas.style) {
             canvas.style.cursor = "default";
         }
-        // TEMPORARY DIAGNOSTIC cleanup
-        canvas.removeEventListener("mousedown", debugMouseDown);
-        canvas.removeEventListener("mousemove", debugMouseMove);
-        canvas.removeEventListener("mouseup", debugMouseUp);
-        canvas.removeEventListener("pointerdown", debugPointerDown);
-        canvas.removeEventListener("pointerup", debugPointerUp);
-        canvas.removeEventListener("wheel", debugWheel);
     };
 }
