@@ -76,6 +76,16 @@ export default function LoginForm() {
     async function handleGuest() {
         setError("");
         setGuestLoading(true);
+
+        // Already have a session (e.g. an existing guest session from an
+        // earlier visit) -- Better Auth refuses to start a second anonymous
+        // session on top of one, so just continue into the app instead.
+        const { data: existingSession } = await authClient.getSession();
+        if (existingSession) {
+            router.push(getSafeRedirect(next));
+            return;
+        }
+
         const { error: guestError } = await authClient.signIn.anonymous();
         if (guestError) {
             console.warn('[login] guest sign-in failed', { code: guestError.code, message: guestError.message });
