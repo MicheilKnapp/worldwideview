@@ -22,8 +22,8 @@ import { withTrailHistory } from "@/core/plugins/withTrailHistory";
 // Wrapped here rather than forking/replacing their bundles. Keyed by manifest
 // id with per-plugin trail styling.
 const TRAIL_HISTORY_PLUGINS: Record<string, { maxPoints?: number; color?: string }> = {
-    aviation: { maxPoints: 15, color: "#38bdf8" },
-    "military-aviation": { maxPoints: 15, color: "#ffea00" },
+    aviation: { maxPoints: 40, color: "#38bdf8" }, // ~40 min at its 60s poll interval
+    "military-aviation": { maxPoints: 40, color: "#ffea00" },
 };
 
 /**
