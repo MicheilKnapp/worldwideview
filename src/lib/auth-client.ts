@@ -12,7 +12,7 @@
  */
 
 import { createAuthClient } from "better-auth/react";
-import { anonymousClient } from "better-auth/plugins/anonymous";
+import { anonymousClient } from "better-auth/client/plugins";
 
 /**
  * Get the base URL for the auth server.
