@@ -2,9 +2,17 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Without this, Next.js walks up from cwd looking for a workspace root and
+  // stops at the first lockfile it finds -- which here is an unrelated
+  // C:\Users\<user>\package-lock.json, not this project. That misdetection
+  // nests the standalone build output under Documents/World Wide View/ instead
+  // of the standalone/ folder root, breaking `node .next/standalone/server.js`.
+  outputFileTracingRoot: process.cwd(),
   serverExternalPackages: ["@prisma/client", "prisma"],
   transpilePackages: ["@worldwideview/wwv-plugin-sdk", "resium", "react-player", "satellite.js", "@worldwideview/wwv-plugin-fortiguard", "@worldwideview/wwv-plugin-nz-traffic-cameras"],
-  allowedDevOrigins: process.env.ALLOWED_DEV_ORIGIN ? [process.env.ALLOWED_DEV_ORIGIN] : undefined,
+  allowedDevOrigins: process.env.ALLOWED_DEV_ORIGIN
+    ? process.env.ALLOWED_DEV_ORIGIN.split(",").map((o) => o.trim())
+    : undefined,
   experimental: {
     memoryBasedWorkersCount: true,
     cpus: 2,

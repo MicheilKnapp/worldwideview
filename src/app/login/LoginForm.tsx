@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { isDemo } from "@/core/edition";
 import { authClient } from "@/lib/auth-client";
 import { migrateLegacyUserIfNeeded } from "@/lib/auth/migrate-legacy-user";
@@ -24,6 +25,12 @@ export default function LoginForm() {
     const next = searchParams.get("next");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+    // Guards against the browser's native form POST firing (submitting
+    // credentials to /login as a plain page request, silently discarded)
+    // if the user taps submit before React has hydrated and attached
+    // handleSubmit — a real race on slower mobile devices/networks.
+    const [hydrated, setHydrated] = useState(false);
+    useEffect(() => setHydrated(true), []);
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
@@ -98,10 +105,14 @@ export default function LoginForm() {
 
             {error && <p className={styles.error}>{error}</p>}
 
-            <button type="submit" disabled={loading} className={styles.button}>
-              {loading ? "Signing in..." : "Sign In"}
+            <button type="submit" disabled={loading || !hydrated} className={styles.button}>
+              {loading ? "Signing in..." : hydrated ? "Sign In" : "Loading..."}
             </button>
           </form>
+
+          <p style={{ marginTop: "1rem", fontSize: "0.85rem" }}>
+            Don&apos;t have an account? <Link href="/signup">Sign up</Link>
+          </p>
         </div>
       </div>
     );

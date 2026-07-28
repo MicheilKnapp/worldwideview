@@ -83,7 +83,18 @@ export async function resolveTrustedOrigins(request?: Request): Promise<string[]
     return [...new Set(base)];
 }
 
+// No BETTER_AUTH_URL configured: resolve baseURL dynamically per-request instead
+// of leaving it unset. Better Auth computes an unset baseURL ONCE at startup with
+// no request available (despite its own warning implying per-request derivation),
+// which is unreliable when the same server is reached via multiple hosts
+// (localhost, LAN IP, Tailscale IP, ...). In local edition that's exactly our
+// case and there's no meaningful CSRF risk (single operator), so allow any host;
+// non-local editions without BETTER_AUTH_URL keep the previous (env-driven) behavior.
+const baseURL = process.env.BETTER_AUTH_URL
+    || (isLocal ? { allowedHosts: ["*"], fallback: "http://localhost:3000", protocol: "http" as const } : undefined);
+
 export const auth = betterAuth({
+    baseURL,
     basePath: "/api/ba",
     database: prismaAdapter(prisma, {
         provider: "postgresql",

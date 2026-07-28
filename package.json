@@ -10,6 +10,8 @@
     "test-worktree": "node scripts/test-worktree.mjs",
     "clean": "node -e \"const fs=require('fs');fs.rmSync('.next',{recursive:true,force:true})\"",
     "dev": "node scripts/dev.mjs",
+    "up": "node scripts/start-server.mjs",
+    "down": "node scripts/stop-server.mjs",
     "dev:all": "concurrently -n \"dev,backends\" -c \"magenta,blue\" \"pnpm dev\" \"pnpm dev:backends\"",
     "dev:backends": "docker compose --profile engine up wwv-data-engine wwv-redis",
     "dev:plugins": "node scripts/watch-local-plugins.mjs",

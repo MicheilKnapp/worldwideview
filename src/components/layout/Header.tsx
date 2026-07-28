@@ -174,6 +174,23 @@ export function Header() {
                     </svg>
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setShowApiKeys(true)}
+                  title="API Keys"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "6px",
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--text-secondary)",
+                    gap: "4px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <Key size={16} />
+                </button>
                 {!isDemo && (
                   <button
                     type="button"
@@ -199,6 +216,63 @@ export function Header() {
                 </div>
               </div>
             </header>
+            {showApiKeys && (
+              <div
+                style={{
+                  position: "fixed",
+                  inset: 0,
+                  background: "rgba(0,0,0,0.45)",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "center",
+                  paddingTop: "5vh",
+                  paddingBottom: "5vh",
+                  overflowY: "auto",
+                  zIndex: 9999,
+                }}
+                onClick={() => setShowApiKeys(false)}
+              >
+                <div
+                  className="glass-panel"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    width: "min(700px, 90vw)",
+                    maxHeight: "80vh",
+                    overflowY: "auto",
+                    padding: "24px",
+                    borderRadius: "16px",
+                    margin: "20px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    <h2 style={{ margin: 0 }}>Keys &amp; Access</h2>
+
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => setShowApiKeys(false)}
+                    >
+                      Close
+                    </button>
+                  </div>
+
+                  <ApiKeysTab />
+                  {!isDemo && (
+                    <>
+                      <hr style={{ border: "none", borderTop: "1px solid var(--border-subtle)", margin: "var(--space-lg) 0" }} />
+                      <PersonalApiKeysSection />
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
             {themeOpen && (
               <div className="dropdown-menu" style={{ top: themePos.top, right: themePos.right - 2 }}>
                 {THEMES.map((th) => {

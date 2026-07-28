@@ -40,7 +40,7 @@ const teardownDbOnExit = process.env.WWV_TEARDOWN_DB_ON_EXIT === 'true' || proce
 const { result, commands } = concurrently(
   [
     { command: 'pnpm run dev:plugins', name: 'plugins', prefixColor: 'magenta' },
-    { command: 'pnpm exec next dev', name: 'next', prefixColor: 'blue' }
+    { command: 'pnpm exec next dev -H 0.0.0.0 -p 3001', name: 'next', prefixColor: 'blue' }
   ],
   {
     prefix: 'name',

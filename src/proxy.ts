@@ -180,7 +180,7 @@ export default async function proxy(req: NextRequest) {
     }
 
     // Auth pages: always accessible
-    if (path.startsWith("/setup") || path.startsWith("/login") || path.startsWith("/locked")) {
+    if (path.startsWith("/setup") || path.startsWith("/login") || path.startsWith("/signup") || path.startsWith("/locked")) {
         const res = NextResponse.next();
         if (tenantSubdomain) res.headers.set("x-tenant-subdomain", tenantSubdomain);
         return res;

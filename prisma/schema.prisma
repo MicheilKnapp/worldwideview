@@ -138,6 +138,9 @@ model BetterAuthUser {
   emailVerified Boolean   @default(false)
   image         String?
   role          String    @default("user")
+  banned        Boolean   @default(false)
+  banReason     String?
+  banExpires    DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   sessions      BetterAuthSession[]
@@ -158,6 +161,7 @@ model BetterAuthSession {
   ipAddress             String?
   userAgent             String?
   activeOrganizationId  String?
+  impersonatedBy        String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
   user                  BetterAuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
