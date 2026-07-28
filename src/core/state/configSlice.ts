@@ -87,7 +87,11 @@ export interface ConfigSlice {
 
 export const createConfigSlice: StateCreator<AppStore, [], [], ConfigSlice> = (set) => ({
     dataConfig: {
-        pollingIntervals: {},
+        // Aviation's bundle declares getPollingInterval() === 0 (WS-push only)
+        // since it expects a real-time data engine stream. We don't run one,
+        // so give it a real interval to poll our /api/aviation REST fallback
+        // instead of loading one static snapshot and never updating again.
+        pollingIntervals: { aviation: 60000 },
         cacheEnabled: true,
         cacheMaxAge: 3600000,
         maxConcurrentRequests: 5,

@@ -25,13 +25,28 @@ function getLocalWsUrl() {
     return `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.hostname}:${port}/stream`;
 }
 /**
+ * Plugin IDs that should ignore their own declared streamUrl (hardcoded in
+ * the bundle's getServerConfig(), or in its manifest's dataSource) and use
+ * the global NEXT_PUBLIC_WWV_PLUGIN_DATA_ENGINE_URL instead. For self-hosters
+ * whose bundle points at a cloud engine with no seeder running, but who have
+ * their own working REST/WS endpoint at the default engine URL.
+ */
+function isForcedToGlobalEngine(pluginId: string): boolean {
+  const forced = process.env.NEXT_PUBLIC_WWV_FORCE_GLOBAL_ENGINE || "";
+  if (!forced) return false;
+  return forced.split(",").map((s) => s.trim()).includes(pluginId);
+}
+
+/**
  * Resolves the WebSocket engine URL for a given plugin.
  *
  * Resolution order:
  * 1. Local engine (if running at localhost:5000 and has this plugin's seeder,
  *    AND the plugin is not in NEXT_PUBLIC_WWV_LOCAL_ENGINE_BLOCKLIST)
- * 2. Plugin's ServerPluginConfig.streamUrl (code-based plugins)
- * 3. Plugin's PluginManifest.dataSource.streamUrl (manifest-based plugins)
+ * 2. Plugin's ServerPluginConfig.streamUrl (code-based plugins) — skipped if
+ *    the plugin is in NEXT_PUBLIC_WWV_FORCE_GLOBAL_ENGINE
+ * 3. Plugin's PluginManifest.dataSource.streamUrl (manifest-based plugins) —
+ *    also skipped for forced plugins
  * 4. NEXT_PUBLIC_WWV_PLUGIN_DATA_ENGINE_URL env var
  * 5. Fallback: wss://dataengine.worldwideview.dev/stream (cloud)
  */
@@ -43,16 +58,18 @@ export function resolveEngineUrl(pluginId: string): string {
     return getLocalWsUrl();
   }
 
-  // 2. Code-based plugin server config
-  const managed = pluginManager.getPlugin(pluginId);
-  if (managed) {
-    const serverConfig = managed.plugin.getServerConfig?.();
-    if (serverConfig?.streamUrl) return serverConfig.streamUrl;
-  }
+  if (!isForcedToGlobalEngine(pluginId)) {
+    // 2. Code-based plugin server config
+    const managed = pluginManager.getPlugin(pluginId);
+    if (managed) {
+      const serverConfig = managed.plugin.getServerConfig?.();
+      if (serverConfig?.streamUrl) return serverConfig.streamUrl;
+    }
 
-  // 3. Manifest-based plugin data source config
-  const manifest = pluginManager.getManifest(pluginId);
-  if (manifest?.dataSource?.streamUrl) return manifest.dataSource.streamUrl;
+    // 3. Manifest-based plugin data source config
+    const manifest = pluginManager.getManifest(pluginId);
+    if (manifest?.dataSource?.streamUrl) return manifest.dataSource.streamUrl;
+  }
 
   // 4+5. Global default (env var or cloud)
   return DEFAULT_ENGINE_URL;
