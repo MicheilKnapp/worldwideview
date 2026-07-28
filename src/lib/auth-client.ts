@@ -12,6 +12,7 @@
  */
 
 import { createAuthClient } from "better-auth/react";
+import { anonymousClient } from "better-auth/plugins/anonymous";
 
 /**
  * Get the base URL for the auth server.
@@ -46,6 +47,7 @@ function resolveBaseUrl(): string {
 export const authClient = createAuthClient({
     baseURL: resolveBaseUrl(),
     basePath: "/api/ba",
+    plugins: [anonymousClient()],
 });
 
 /**

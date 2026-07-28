@@ -16,6 +16,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "@/lib/db";
 import { isLocal } from "@/core/edition";
 import { organization, admin, jwt } from "better-auth/plugins";
+import { anonymous } from "better-auth/plugins/anonymous";
 import { oneTimeToken } from "better-auth/plugins/one-time-token";
 import { apiKey } from "@better-auth/api-key";
 import { evaluatePasswordStrength, MIN_PASSWORD_SCORE } from "@/lib/password-strength";
@@ -152,6 +153,12 @@ export const auth = betterAuth({
         }),
         // User management — list, ban, impersonate.
         admin(),
+        // Guest access — "Use as Guest" creates a real (but temporary) user
+        // with a normal session, so favorites/API keys/workspaces all work
+        // the same as a signed-up account.
+        anonymous({
+            generateName: () => "Guest",
+        }),
         // JWT + JWKS — token endpoint at /api/ba/token, JWKS at /api/ba/jwks.
         // The data engine fetches JWKS from this endpoint to verify plugin tickets.
         jwt({

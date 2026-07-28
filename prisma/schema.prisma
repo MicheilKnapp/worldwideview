@@ -141,6 +141,7 @@ model BetterAuthUser {
   banned        Boolean   @default(false)
   banReason     String?
   banExpires    DateTime?
+  isAnonymous   Boolean   @default(false)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   sessions      BetterAuthSession[]

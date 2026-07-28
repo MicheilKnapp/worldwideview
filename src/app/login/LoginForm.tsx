@@ -25,6 +25,7 @@ export default function LoginForm() {
     const next = searchParams.get("next");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+    const [guestLoading, setGuestLoading] = useState(false);
     // Guards against the browser's native form POST firing (submitting
     // credentials to /login as a plain page request, silently discarded)
     // if the user taps submit before React has hydrated and attached
@@ -72,6 +73,19 @@ export default function LoginForm() {
         // On success, Better Auth redirects to callbackURL
     }
 
+    async function handleGuest() {
+        setError("");
+        setGuestLoading(true);
+        const { error: guestError } = await authClient.signIn.anonymous();
+        if (guestError) {
+            console.warn('[login] guest sign-in failed', { code: guestError.code, message: guestError.message });
+            setError("Couldn't start a guest session. Try again.");
+            setGuestLoading(false);
+            return;
+        }
+        router.push(getSafeRedirect(next));
+    }
+
     return (
       <div className={styles.container}>
         <div className={styles.card}>
@@ -113,6 +127,16 @@ export default function LoginForm() {
           <p style={{ marginTop: "1rem", fontSize: "0.85rem" }}>
             Don&apos;t have an account? <Link href="/signup">Sign up</Link>
           </p>
+
+          <button
+            type="button"
+            onClick={handleGuest}
+            disabled={guestLoading || !hydrated}
+            className={styles.button}
+            style={{ marginTop: "0.75rem", background: "transparent", border: "1px solid currentColor" }}
+          >
+            {guestLoading ? "Starting guest session..." : "Continue as Guest"}
+          </button>
         </div>
       </div>
     );
