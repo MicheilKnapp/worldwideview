@@ -15,6 +15,16 @@ import { trackEvent } from "@/lib/analytics";
 import { resolveEngineUrl } from "@/core/data/resolveEngineUrl";
 import { fetchLocalEngineManifest } from "@/core/data/engineManifest";
 import { pluginRegistry } from "@/core/plugins/PluginRegistry";
+import { withTrailHistory } from "@/core/plugins/withTrailHistory";
+
+// Third-party bundles that don't ship their own always-visible trail (unlike
+// e.g. maritime, which already accumulates properties.history natively).
+// Wrapped here rather than forking/replacing their bundles. Keyed by manifest
+// id with per-plugin trail styling.
+const TRAIL_HISTORY_PLUGINS: Record<string, { maxPoints?: number; color?: string }> = {
+    aviation: { maxPoints: 15, color: "#38bdf8" },
+    "military-aviation": { maxPoints: 15, color: "#ffea00" },
+};
 
 /**
  * ManagedPlugin represents the internal state and instance of a registered data source.
@@ -400,11 +410,20 @@ class PluginManager {
      * @returns A promise that resolves when the plugin is fully registered and initialized.
      */
     async loadFromManifest(manifest: PluginManifest): Promise<void> {
-        const plugin = await loadPluginFromManifest(manifest);
+        let plugin = await loadPluginFromManifest(manifest);
         if (manifest.id && plugin.id !== manifest.id) {
             console.warn(`[PluginManager] Overriding plugin ID from internal '${plugin.id}' to manifest ID '${manifest.id}'`);
             plugin.id = manifest.id;
         }
+
+        const trailConfig = TRAIL_HISTORY_PLUGINS[plugin.id];
+        if (trailConfig) {
+            plugin = withTrailHistory(plugin, {
+                maxPoints: trailConfig.maxPoints,
+                trailOptions: trailConfig.color ? { color: trailConfig.color } : undefined,
+            });
+        }
+
         this.loadedManifests.set(manifest.id, manifest);
         await this.registerPlugin(plugin);
     }
