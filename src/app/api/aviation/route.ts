@@ -5,7 +5,14 @@ import { NextResponse } from "next/server";
 // from our own domain so the aviation plugin's REST fallback (and, via the
 // polling interval override, its ongoing updates) works without depending
 // on the shared cloud data engine having a seeder running.
-export const revalidate = 60;
+//
+// Anonymous OpenSky access is capped at ~400 credits/day (a /states/all call
+// costs 4 credits), so this server-side fetch cache is held for 15 minutes
+// without credentials -- regardless of how often the client polls our own
+// route, the actual upstream OpenSky call only happens once per window.
+// With OPENSKY_CREDENTIALS set (much higher quota), cache for 60s instead.
+const ANONYMOUS_REVALIDATE_SECONDS = 15 * 60;
+const AUTHENTICATED_REVALIDATE_SECONDS = 60;
 
 const OPENSKY_URL = "https://opensky-network.org/api/states/all";
 
@@ -34,7 +41,7 @@ export async function GET() {
 
         const response = await fetch(OPENSKY_URL, {
             headers,
-            next: { revalidate },
+            next: { revalidate: credentials ? AUTHENTICATED_REVALIDATE_SECONDS : ANONYMOUS_REVALIDATE_SECONDS },
         });
 
         if (!response.ok) {
