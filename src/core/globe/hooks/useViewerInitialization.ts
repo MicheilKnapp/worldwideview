@@ -28,13 +28,18 @@ export function useViewerInitialization(sceneSettings: any) {
         // Configure Screen Space Camera
         const sscc = viewer.scene.screenSpaceCameraController;
         sscc.tiltEventTypes = [
+            CameraEventType.WHEEL,
             CameraEventType.MIDDLE_DRAG,
             CameraEventType.RIGHT_DRAG,
             CameraEventType.PINCH,
             { eventType: CameraEventType.LEFT_DRAG, modifier: KeyboardEventModifier.CTRL },
             { eventType: CameraEventType.RIGHT_DRAG, modifier: KeyboardEventModifier.CTRL }
         ];
-        sscc.zoomEventTypes = [CameraEventType.WHEEL, CameraEventType.PINCH];
+        // WHEEL (mouse-wheel scroll and trackpad two-finger vertical slide --
+        // the browser reports both as the same event, so they can't be told
+        // apart) now controls tilt instead of zoom. Zoom still works via
+        // PINCH (trackpad pinch gesture / touch pinch).
+        sscc.zoomEventTypes = [CameraEventType.PINCH];
 
         if ("ontouchstart" in window || navigator.maxTouchPoints > 0) {
             (sscc as any)._zoomFactor = 5;
