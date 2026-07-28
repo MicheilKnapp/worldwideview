@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 
-// Mirrors local-seeders/community/packages/aviation's logic: commercial
-// aircraft tracking via OpenSky Network's public REST API. Served directly
-// from our own domain so the aviation plugin's REST fallback (and, via the
-// polling interval override, its ongoing updates) works without depending
-// on the shared cloud data engine having a seeder running.
+// Commercial aircraft tracking via OpenSky Network's public REST API. Served
+// directly from our own domain so the aviation plugin's REST fallback (and,
+// via the polling interval override, its ongoing updates) works without
+// depending on the shared cloud data engine having a seeder running.
 //
 // Anonymous OpenSky access is capped at ~400 credits/day (a /states/all call
 // costs 4 credits), so this server-side fetch cache is held for 15 minutes
@@ -15,6 +14,9 @@ const ANONYMOUS_REVALIDATE_SECONDS = 15 * 60;
 const AUTHENTICATED_REVALIDATE_SECONDS = 60;
 
 const OPENSKY_URL = "https://opensky-network.org/api/states/all";
+// OpenSky exclusively supports the OAuth2 client_credentials flow -- plain
+// HTTP Basic auth with client_id:client_secret is no longer accepted.
+const OPENSKY_TOKEN_URL = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token";
 
 interface OpenSkyAircraft {
     icao24: string;
@@ -31,17 +33,64 @@ interface OpenSkyAircraft {
     squawk: string | null;
 }
 
+// Access tokens are valid for 30 minutes; cache across requests within this
+// server process so we don't re-authenticate on every poll.
+let cachedToken: { accessToken: string; expiresAt: number } | null = null;
+
+async function getAccessToken(clientId: string, clientSecret: string): Promise<string | null> {
+    if (cachedToken && cachedToken.expiresAt > Date.now()) {
+        return cachedToken.accessToken;
+    }
+
+    try {
+        const body = new URLSearchParams({
+            grant_type: "client_credentials",
+            client_id: clientId,
+            client_secret: clientSecret,
+        });
+        const res = await fetch(OPENSKY_TOKEN_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: body.toString(),
+        });
+        if (!res.ok) {
+            console.error(`[AviationRoute] OpenSky token exchange failed: ${res.status}`);
+            return null;
+        }
+        const data = (await res.json()) as { access_token?: string; expires_in?: number };
+        if (!data.access_token) return null;
+
+        // Refresh 60s before actual expiry so we never use a token that
+        // expires mid-request.
+        const ttlMs = Math.max((data.expires_in ?? 1800) - 60, 60) * 1000;
+        cachedToken = { accessToken: data.access_token, expiresAt: Date.now() + ttlMs };
+        return cachedToken.accessToken;
+    } catch (err) {
+        console.error("[AviationRoute] OpenSky token exchange error:", err);
+        return null;
+    }
+}
+
 export async function GET() {
     try {
-        const credentials = process.env.OPENSKY_CREDENTIALS?.split(",")[0]?.trim();
+        const credentialsRaw = process.env.OPENSKY_CREDENTIALS?.split(",")[0]?.trim();
+        let accessToken: string | null = null;
+
+        if (credentialsRaw) {
+            const [clientId, clientSecret] = credentialsRaw.split(":");
+            if (clientId && clientSecret) {
+                accessToken = await getAccessToken(clientId, clientSecret);
+            }
+        }
+
         const headers: Record<string, string> = { Accept: "application/json", "User-Agent": "WorldWideView/1.0" };
-        if (credentials) {
-            headers.Authorization = `Basic ${Buffer.from(credentials).toString("base64")}`;
+        if (accessToken) {
+            headers.Authorization = `Bearer ${accessToken}`;
         }
 
         const response = await fetch(OPENSKY_URL, {
             headers,
-            next: { revalidate: credentials ? AUTHENTICATED_REVALIDATE_SECONDS : ANONYMOUS_REVALIDATE_SECONDS },
+            next: { revalidate: accessToken ? AUTHENTICATED_REVALIDATE_SECONDS : ANONYMOUS_REVALIDATE_SECONDS },
         });
 
         if (!response.ok) {
