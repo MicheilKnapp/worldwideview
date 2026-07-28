@@ -33,6 +33,13 @@ interface OpenSkyAircraft {
     squawk: string | null;
 }
 
+// Next.js's built-in fetch data cache refuses entries over 2MB -- OpenSky's
+// full state-vector payload is ~2.3MB, so `next: { revalidate }` silently
+// fails to cache it at all (every request would hit OpenSky uncached,
+// defeating the whole point of the revalidate window below). Cache the
+// transformed result manually instead.
+let cachedResult: { items: OpenSkyAircraft[]; fetchedAt: number } | null = null;
+
 // Access tokens are valid for 30 minutes; cache across requests within this
 // server process so we don't re-authenticate on every poll.
 let cachedToken: { accessToken: string; expiresAt: number } | null = null;
@@ -64,6 +71,7 @@ async function getAccessToken(clientId: string, clientSecret: string): Promise<s
         // expires mid-request.
         const ttlMs = Math.max((data.expires_in ?? 1800) - 60, 60) * 1000;
         cachedToken = { accessToken: data.access_token, expiresAt: Date.now() + ttlMs };
+        console.log("[AviationRoute] OpenSky token exchange succeeded.");
         return cachedToken.accessToken;
     } catch (err) {
         console.error("[AviationRoute] OpenSky token exchange error:", err);
@@ -83,17 +91,22 @@ export async function GET() {
             }
         }
 
+        const revalidateMs = (accessToken ? AUTHENTICATED_REVALIDATE_SECONDS : ANONYMOUS_REVALIDATE_SECONDS) * 1000;
+        if (cachedResult && Date.now() - cachedResult.fetchedAt < revalidateMs) {
+            return NextResponse.json({ items: cachedResult.items });
+        }
+
         const headers: Record<string, string> = { Accept: "application/json", "User-Agent": "WorldWideView/1.0" };
         if (accessToken) {
             headers.Authorization = `Bearer ${accessToken}`;
         }
 
-        const response = await fetch(OPENSKY_URL, {
-            headers,
-            next: { revalidate: accessToken ? AUTHENTICATED_REVALIDATE_SECONDS : ANONYMOUS_REVALIDATE_SECONDS },
-        });
+        // cache: "no-store" -- see cachedResult comment above for why we
+        // don't use Next's built-in fetch cache here.
+        const response = await fetch(OPENSKY_URL, { headers, cache: "no-store" });
 
         if (!response.ok) {
+            if (cachedResult) return NextResponse.json({ items: cachedResult.items });
             return NextResponse.json(
                 { error: "Failed to fetch aviation data", status: response.status },
                 { status: 502 },
@@ -102,7 +115,7 @@ export async function GET() {
 
         const data = (await response.json()) as { states?: unknown[][] | null };
         if (!Array.isArray(data.states)) {
-            return NextResponse.json({ items: [] });
+            return NextResponse.json({ items: cachedResult?.items ?? [] });
         }
 
         const items: OpenSkyAircraft[] = data.states
@@ -122,9 +135,11 @@ export async function GET() {
                 squawk: s[14] as string | null,
             }));
 
+        cachedResult = { items, fetchedAt: Date.now() };
         return NextResponse.json({ items });
     } catch (error) {
         console.error("[AviationRoute] Error:", error);
+        if (cachedResult) return NextResponse.json({ items: cachedResult.items });
         return NextResponse.json(
             { error: "Failed to fetch aviation data" },
             { status: 502 },
