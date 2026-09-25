@@ -66,6 +66,12 @@ export const osmSearchLimiter = new RateLimiter({
     maxRequests: 30,
 });
 
+/** /api/plugins/surveillance-infrastructure — bbox tile reads are cheap but unauthenticated. */
+export const surveillanceLimiter = new RateLimiter({
+    windowMs: 60_000,
+    maxRequests: 60,
+});
+
 /** /api/mcp — prevents scan/DoS before the expensive auth layer runs. */
 export const mcpLimiter = new RateLimiter({
     windowMs: 60_000,
