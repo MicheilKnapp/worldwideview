@@ -117,3 +117,59 @@ export function parseTiers(raw: string | null): TierId[] | null {
     const valid = requested.filter((t): t is TierId => (TIER_IDS as readonly string[]).includes(t));
     return valid.length > 0 ? valid : null;
 }
+
+export const SUMMARY_CELL_DEG = 1;
+
+export function regionKeyFor(lat: number, lon: number): string {
+    return `${cellOrigin(lat, REGION_SIZE_DEG)}/${cellOrigin(lon, REGION_SIZE_DEG)}`;
+}
+
+export function segmentIntoRegions(records: DeviceRecord[]): Map<string, DeviceRecord[]> {
+    const regions = new Map<string, DeviceRecord[]>();
+    for (const record of records) {
+        const key = regionKeyFor(record.lat, record.lon);
+        const bucket = regions.get(key);
+        if (bucket) bucket.push(record);
+        else regions.set(key, [record]);
+    }
+    return regions;
+}
+
+/**
+ * Compact cluster cell: [lat, lon, total, alpr, gunshot, afr, publicSpace].
+ * Tuples rather than objects — at ~10k populated cells the key names would be
+ * most of the payload.
+ */
+export type SummaryCell = [number, number, number, number, number, number, number];
+
+const TIER_SLOT: Record<TierId, number> = {
+    alpr: 3,
+    gunshot_detector: 4,
+    afr: 5,
+    public_space: 6,
+};
+
+export function buildSummary(records: DeviceRecord[]): SummaryCell[] {
+    const cells = new Map<string, SummaryCell>();
+    for (const record of records) {
+        const lat = cellOrigin(record.lat, SUMMARY_CELL_DEG);
+        const lon = cellOrigin(record.lon, SUMMARY_CELL_DEG);
+        const key = `${lat}/${lon}`;
+        let cell = cells.get(key);
+        if (!cell) {
+            cell = [lat, lon, 0, 0, 0, 0, 0];
+            cells.set(key, cell);
+        }
+        cell[2] += 1;
+        cell[TIER_SLOT[record.t]] += 1;
+    }
+    return [...cells.values()];
+}
+
+export function countByTier(records: DeviceRecord[]): Record<string, number> {
+    const counts: Record<string, number> = {};
+    for (const record of records) {
+        counts[record.t] = (counts[record.t] ?? 0) + 1;
+    }
+    return counts;
+}
