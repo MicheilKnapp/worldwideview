@@ -9,7 +9,7 @@ import { NodeFileSource } from "./nodeFileSource";
  * service that rate-limits and goes down; a PMTiles archive on disk is a local
  * read with no quota, no cold-fetch latency and no circuit breaker.
  *
- * ARCHIVES ARE TIERED, not one file. A planet basemap at full detail is ~120GB,
+ * ARCHIVES ARE TIERED, not one file. A planet basemap at full detail is ~138GB,
  * and each zoom level roughly doubles size, so covering the world at street
  * detail is not affordable. Instead several archives are configured, each with
  * its own coverage and maximum zoom — for example the United States at street
@@ -156,6 +156,13 @@ export async function getVectorTile(
         };
 
         // Archives are configured most detailed first, so the first match wins.
+        // A header only states an archive's bounding box, which is coarser than
+        // the data it holds: a US extract's bbox reaches into Canada and Mexico
+        // without containing a single tile there. So an empty answer from a
+        // covering archive is NOT authoritative — the next archive must still be
+        // asked, or a detailed tier would shadow every coarser one across the
+        // slack in its own bounds.
+        let answered = false;
         for (const archive of open) {
             const header = await headerFor(archive);
             if (!header || !headerCoversTile(header, at)) continue;
@@ -164,16 +171,22 @@ export async function getVectorTile(
                 if (result?.data) {
                     return { data: result.data, archive: archive.name, z: at.z };
                 }
-                // A covered-but-empty tile is normal — ocean, desert — so stop
-                // rather than falling through to a coarser zoom for nothing.
-                return null;
+                // Read cleanly, genuinely no tile here.
+                answered = true;
             } catch (err) {
+                // A failed read says nothing about coverage, so it must not
+                // count as an answer.
                 console.error(
                     `[pmtiles] ${archive.name} failed at ${at.z}/${at.x}/${at.y}:`,
                     err instanceof Error ? err.message : err,
                 );
             }
         }
+
+        // Every archive that covers this tile agreed it is empty — ocean, or
+        // desert. Retrying at a coarser zoom would only widen the area and find
+        // the same nothing, so stop here rather than walking down to z0.
+        if (answered) return null;
     }
     return null;
 }

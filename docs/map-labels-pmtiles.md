@@ -25,43 +25,89 @@ rebuilt and shipped on every deploy. Put them on the existing `wwv-data` volume.
 
 ## Tiering
 
-A full planet basemap at z0–15 is roughly **120 GB**, and each zoom level
-roughly doubles the size, so worldwide street detail is not affordable. Instead
-several archives are configured with different coverage and maximum zoom.
+A full planet basemap at z0–15 is **138 GB** (measured against the 2026-09-25
+build; the Protomaps docs still say ~120 GB). Each zoom level roughly doubles the
+size, so worldwide street detail is not affordable. Instead several archives are
+configured with different coverage and maximum zoom.
 
-The suggested shape for a 50 GB budget, most detailed first:
+Sizes below are measured with `--dry-run`, not estimated:
 
-| Archive | Coverage | Max zoom | Purpose |
+| Archive | Coverage | Max zoom | Size |
 |---|---|---|---|
-| `us.pmtiles` | United States | 14 | Street names |
-| `na.pmtiles` | Canada and Mexico | 12 | Major roads, towns |
-| `world.pmtiles` | Planet | 9 | Cities and towns only |
+| `us.pmtiles` | United States, incl. Alaska, Hawaii, Puerto Rico | 14 | 9.7 GB |
+| `na.pmtiles` | Canada and Mexico | 13 | 8.1 GB |
+| `world.pmtiles` | Planet | 10 | 3.8 GB |
+| | | **total** | **21.6 GB** |
 
-z14 rather than z15 for the top tier is deliberate: street labels only render
-below 4 km camera height, where z14 already carries residential roads, and z15
-would roughly double the file for detail no label uses.
+That leaves headroom inside a 50 GB budget for a re-cut, which briefly needs
+space for both the old archive and the new `.partial` beside it.
 
-**These numbers are a starting point, not a measurement.** Build the smallest
-tier first, check its size, and adjust `--maxzoom` before committing to the
-largest.
+Two of those zooms are chosen to match what the code actually asks for.
+`fetchPlacesFromTiles` defaults to `maxZoom = 10`, so a world archive capped at
+z9 would serve every place request a coarser parent tile. Street labels only
+render below 4 km camera height, where z14 already carries residential roads —
+z15 measures 19 GB for the US alone, doubling the file for geometry that
+`simplifyPolyline` then discards.
+
+The US tier is cut from a **GeoJSON region, not a bbox**: a single rectangle
+around the United States either omits Alaska, Hawaii and Puerto Rico, or
+swallows most of Canada and the Pacific. See `scripts/pmtiles-us-region.geojson`.
+Including the three of them costs only +0.9 GB over the contiguous states.
 
 ## Building the archives
 
-Uses the [PMTiles CLI](https://docs.protomaps.com/pmtiles/cli) (a single Go
-binary) against a planet basemap file.
+`scripts/build-pmtiles.sh` does the whole job — it fetches the
+[PMTiles CLI](https://docs.protomaps.com/pmtiles/cli), finds the newest planet
+build and cuts each tier. Run it where the files will live.
 
 ```bash
-# Bounds are min-lon,min-lat,max-lon,max-lat
-pmtiles extract PLANET.pmtiles world.pmtiles --maxzoom=9
-pmtiles extract PLANET.pmtiles us.pmtiles    --maxzoom=14 --bbox=-125.0,24.4,-66.9,49.4
-pmtiles extract PLANET.pmtiles na.pmtiles    --maxzoom=12 --bbox=-141.0,14.5,-52.6,70.0
+scripts/build-pmtiles.sh estimate   # sizes only, no download
+scripts/build-pmtiles.sh            # build all tiers, cheapest first
+scripts/build-pmtiles.sh world      # one tier
 ```
 
-`pmtiles extract` can read the planet file over HTTP, so the 120 GB source does
-not need downloading in full — it fetches only the ranges each extract needs.
+**Run `estimate` first after changing any zoom or bound.**
+`pmtiles extract --dry-run` walks the source archive's tile directory and reports
+the exact resulting size without downloading any tiles — seconds per tier, a
+handful of HTTP requests. A maxzoom that busts the disk budget is far cheaper to
+find this way than hours into a download.
+
+The equivalent by hand:
+
+```bash
+pmtiles extract PLANET.pmtiles world.pmtiles --maxzoom=10
+pmtiles extract PLANET.pmtiles na.pmtiles    --maxzoom=13 --bbox=-141.0,14.5,-52.6,70.0
+pmtiles extract PLANET.pmtiles us.pmtiles    --maxzoom=14 --region=scripts/pmtiles-us-region.geojson
+```
+
+`pmtiles extract` reads the planet over HTTP range requests, so the 138 GB
+source is never downloaded in full — only the ranges each extract needs. The
+`world` tier, for instance, is cut in five requests.
+
+Two things about the source. Builds live at
+`https://build.protomaps.com/YYYYMMDD.pmtiles`, there is no bucket listing, and
+they are retained only about a fortnight — so a pinned date stops working, and
+the script probes backwards for the newest instead. The CDN also throttles:
+bursts get HTTP 503, including on the 127-byte header read every extract opens
+with, which looks exactly like a missing archive. The script retries with
+backoff; by hand, just try again.
 
 Overlap between tiers is expected and harmless: selection always prefers the
-most detailed archive that covers a tile.
+most detailed archive that has the tile.
+
+## Verifying an archive
+
+```bash
+PMTILES_ARCHIVES=/app/data/pmtiles/us.pmtiles   node node_modules/tsx/dist/cli.mjs scripts/verify-pmtiles.ts
+```
+
+Runs the real pipeline over a real archive and prints which layers a tile
+contains, every `kind` / `kind_detail` seen, and what survives
+`selectVisiblePlaces` and `selectStreetLabels`. Unit tests use synthetic tiles
+and so cannot catch the things most likely to break here — whether Protomaps
+still names its layers `places` and `roads`, and whether its kind values still
+match `LABELLED_KINDS` and `LABELLED_HIGHWAYS`. Worth running against a small
+test extract before building the large tiers.
 
 ## Configuration
 
@@ -94,6 +140,15 @@ for trying an archive before copying it to the volume.
 
 When only a coarse archive covers an area, the read retries at progressively
 lower zooms, so such a view still gets labels — fewer of them — rather than none.
+
+An archive's header states a **bounding box**, which is always looser than the
+tiles it holds: the US region's bounds reach into Canada, Mexico and the Pacific
+without containing a tile there. So an empty answer from a covering archive is
+not authoritative, and every remaining archive is still asked. Skipping that
+would let the most detailed tier shadow all the coarser ones across the slack in
+its own bounds — Canadian street labels would silently return nothing. Only once
+every covering archive agrees a tile is empty does the read stop, which keeps
+open ocean from walking all the way down to z0.
 
 ## Schema notes
 
