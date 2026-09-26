@@ -52,6 +52,29 @@ export function getDefaultDotIcon(color: Color, outlineColor: Color, outlineWidt
 }
 
 /** Update an existing AnimatableItem with new entity data. */
+/**
+ * Tint applied to a billboard's texture.
+ *
+ * Cesium MULTIPLIES the texture by this colour, so it must be white whenever
+ * the artwork already carries its own colour:
+ *
+ *  - `_isAutoSVG` — the host generated the dot from `options.color`, so tinting
+ *    again would square it.
+ *  - a plugin-supplied `iconUrl` with no `options.color` — the plugin never
+ *    asked to be tinted. `getEntityColor` falls back to CYAN, which is a
+ *    reasonable default for an untextured point but silently recolours a
+ *    pre-coloured icon: red reads as dark teal, amber as green. The layer then
+ *    matches nothing in its own legend, and the cause is invisible from the
+ *    plugin's side.
+ *
+ * A plugin that does set `color` gets exactly the tint it asked for.
+ */
+export function resolveBillboardTint(options: CesiumEntityOptions, color: Color): Color {
+    if ((options as { _isAutoSVG?: boolean })._isAutoSVG) return Color.WHITE;
+    if (options.iconUrl && !options.color) return Color.WHITE;
+    return color;
+}
+
 export function updateExistingItem(item: AnimatableItem, entity: GeoEntity, options: CesiumEntityOptions, color: Color) {
     item.entity = entity;
     item.options = options;
@@ -70,7 +93,7 @@ export function updateExistingItem(item: AnimatableItem, entity: GeoEntity, opti
         item.primitive.disableDepthTestDistance = disableDepthTestDistance;
     }
 
-    const billboardColor = (options as any)._isAutoSVG ? Color.WHITE : color;
+    const billboardColor = resolveBillboardTint(options, color);
 
     if (!Color.equals(item.primitive.color, billboardColor)) item.primitive.color = billboardColor;
     if (!Cartesian3.equals(item.primitive.position, item.posRef)) item.primitive.position = item.posRef;
@@ -124,7 +147,7 @@ billboards: BillboardCollection,
     // Use the hi-res cached icon if available, otherwise use raw and trigger async upscale
     const resolvedIcon = options.iconUrl ? (getHiResIconSync(options.iconUrl) ?? options.iconUrl) : undefined;
     const baseSize = getBaseSize();
-    const billboardColor = (options as any)._isAutoSVG ? Color.WHITE : color;
+    const billboardColor = resolveBillboardTint(options, color);
 
     // Performance optimization: Ground-based entities (altitude < 100m) should disable
     // Cesium's heavy depth testing and instead use our efficient manual horizon culling.
