@@ -72,6 +72,12 @@ export const surveillanceLimiter = new RateLimiter({
     maxRequests: 60,
 });
 
+/** /api/map-labels — cached, but still proxies to shared Overpass infrastructure. */
+export const mapLabelsLimiter = new RateLimiter({
+    windowMs: 60_000,
+    maxRequests: 60,
+});
+
 /** /api/mcp — prevents scan/DoS before the expensive auth layer runs. */
 export const mcpLimiter = new RateLimiter({
     windowMs: 60_000,

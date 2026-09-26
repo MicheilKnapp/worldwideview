@@ -27,6 +27,7 @@ export function ImageryPicker() {
     const fallbackLayerId = useStore((s) => s.mapConfig.fallbackLayerId);
     const zoomLayerId = useStore((s) => s.mapConfig.zoomLayerId);
     const autoImageryByZoom = useStore((s) => s.mapConfig.autoImageryByZoom);
+    const showPlaceLabels = useStore((s) => s.mapConfig.showPlaceLabels);
     const sceneMode = useStore((s) => s.mapConfig.sceneMode);
     const updateMapConfig = useStore((s) => s.updateMapConfig);
 
@@ -129,6 +130,18 @@ export function ImageryPicker() {
                             }}
             />
             <span>Use labelled imagery when zoomed in</span>
+          </label>
+
+          <label className="imagery-picker__auto">
+            <input
+              type="checkbox"
+              checked={showPlaceLabels}
+              onChange={(e) => {
+                                updateMapConfig({ showPlaceLabels: e.target.checked });
+                                trackEvent("place-labels-toggle", { enabled: e.target.checked });
+                            }}
+            />
+            <span>Show place names</span>
           </label>
         </div>
 

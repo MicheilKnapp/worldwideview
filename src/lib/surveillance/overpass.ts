@@ -102,7 +102,14 @@ out center tags;`;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function requestMirror(mirror: string, query: string): Promise<OverpassElement[]> {
+/**
+ * Runs a query against ONE mirror, validating the response.
+ *
+ * Exported so other Overpass-backed features reuse the same guards rather
+ * than re-implementing them: a busy instance answers 200 with an HTML body,
+ * and a stale mirror answers 200 with months-old data.
+ */
+export async function requestMirror(mirror: string, query: string): Promise<OverpassElement[]> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {

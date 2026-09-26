@@ -69,6 +69,12 @@ export interface MapConfig {
     autoImageryByZoom: boolean;
     /** The active scene mode (2D, 2.5D, or 3D). */
     sceneMode: 1 | 2 | 3;
+    /**
+     * Whether OSM place names are drawn over the globe. These are Label
+     * primitives rather than imagery, so they stay readable above Google's
+     * photorealistic tiles, which carry no labels of their own.
+     */
+    showPlaceLabels: boolean;
     /** Whether OSM 3D Buildings are shown on non-Google imagery layers. */
     showOsmBuildings: boolean;
     /** Active weather overlay layer ID, or null if disabled. */
@@ -128,9 +134,18 @@ export const createConfigSlice: StateCreator<AppStore, [], [], ConfigSlice> = (s
             typeof window !== "undefined"
             && window.localStorage
             && typeof window.localStorage.getItem === "function"
-                ? localStorage.getItem("wwv_auto_imagery_zoom") !== "0"
-                : true,
+                // Off by default: place labels now render over Google 3D, so
+                // there is no longer a reason to swap away from photorealistic
+                // imagery just to read street and place names.
+                ? localStorage.getItem("wwv_auto_imagery_zoom") === "1"
+                : false,
         sceneMode: 3,
+        showPlaceLabels:
+            typeof window !== "undefined"
+            && window.localStorage
+            && typeof window.localStorage.getItem === "function"
+                ? localStorage.getItem("wwv_place_labels") !== "0"
+                : true,
         showOsmBuildings: true,
         weatherOverlay: null,
     },
@@ -143,6 +158,9 @@ export const createConfigSlice: StateCreator<AppStore, [], [], ConfigSlice> = (s
             }
             if (config.autoImageryByZoom !== undefined && typeof window !== "undefined" && window.localStorage && typeof window.localStorage.setItem === "function") {
                 localStorage.setItem("wwv_auto_imagery_zoom", config.autoImageryByZoom ? "1" : "0");
+            }
+            if (config.showPlaceLabels !== undefined && typeof window !== "undefined" && window.localStorage && typeof window.localStorage.setItem === "function") {
+                localStorage.setItem("wwv_place_labels", config.showPlaceLabels ? "1" : "0");
             }
             return { mapConfig: { ...state.mapConfig, ...config } };
         }),
