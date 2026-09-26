@@ -1,6 +1,36 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { tilesCovering, zoomForBbox } from "./fetchFromTiles";
+// vi.hoisted: the mock factories below are hoisted above these declarations, so
+// the shared spies have to be created in a hoisted block to exist in time.
+type Coord = { z: number; x: number; y: number };
+
+const mocks = vi.hoisted(() => {
+    type Decoder = (data: ArrayBuffer, coord: { z: number; x: number; y: number }) => unknown[];
+    // Explicit signatures: an inferred `vi.fn(() => [])` has an empty argument
+    // tuple, so mock.calls[n][1] would not type-check.
+    return {
+        getVectorTile: vi.fn(),
+        decodeStreets: vi.fn<Decoder>(() => []),
+        decodePlaces: vi.fn<Decoder>(() => []),
+    };
+});
+
+vi.mock("./pmtilesSource", () => ({
+    isPmtilesConfigured: () => true,
+    getVectorTile: mocks.getVectorTile,
+}));
+
+vi.mock("./decodeTile", () => ({
+    decodeStreets: mocks.decodeStreets,
+    decodePlaces: mocks.decodePlaces,
+}));
+
+import {
+    fetchPlacesFromTiles,
+    fetchStreetsFromTiles,
+    tilesCovering,
+    zoomForBbox,
+} from "./fetchFromTiles";
 
 const bbox = (west: number, south: number, east: number, north: number) => ({
     west,
@@ -70,6 +100,65 @@ describe("tilesCovering", () => {
         for (const t of tiles) {
             expect(Number.isFinite(t.x)).toBe(true);
             expect(Number.isFinite(t.y)).toBe(true);
+        }
+    });
+});
+
+describe("decoding a coarser tile than was requested", () => {
+    /**
+     * A tiered archive set answers a street-zoom request with whatever detail it
+     * has: z14 from the US extract, z12 from the planet one. The bytes that come
+     * back belong to THAT tile, and a vector tile's geometry is relative to its
+     * own tile — so decoding needs the served z, x and y together.
+     *
+     * Pairing the served zoom with the requested x and y was live on the site and
+     * broke every label outside the zoom where the two happened to coincide.
+     * Paris asked for z15, the world archive served z12, and decoding z12 data
+     * with z15 coordinates placed features at longitude 2737, latitude -90.
+     * Everything was silently discarded, with no error anywhere.
+     */
+    const PARIS_Z12 = { z: 12, x: 2074, y: 1409 };
+    const view = bbox(2.34, 48.85, 2.36, 48.87);
+
+    beforeEach(() => {
+        mocks.getVectorTile.mockReset();
+        mocks.decodeStreets.mockReset().mockReturnValue([]);
+        mocks.decodePlaces.mockReset().mockReturnValue([]);
+        mocks.getVectorTile.mockResolvedValue({
+            data: new ArrayBuffer(8),
+            archive: "/d/world.pmtiles",
+            coord: PARIS_Z12,
+        });
+    });
+
+    it("decodes streets against the served tile, not the requested one", async () => {
+        await fetchStreetsFromTiles(view);
+
+        expect(mocks.decodeStreets).toHaveBeenCalled();
+        for (const call of mocks.decodeStreets.mock.calls) {
+            expect(call[1]).toEqual(PARIS_Z12);
+        }
+    });
+
+    it("decodes places against the served tile, not the requested one", async () => {
+        await fetchPlacesFromTiles(view);
+
+        expect(mocks.decodePlaces).toHaveBeenCalled();
+        for (const call of mocks.decodePlaces.mock.calls) {
+            expect(call[1]).toEqual(PARIS_Z12);
+        }
+    });
+
+    it("never pairs the served zoom with the requested x and y", async () => {
+        await fetchStreetsFromTiles(view);
+
+        const requestedZoom = zoomForBbox(view, 15);
+        expect(requestedZoom).toBeGreaterThan(PARIS_Z12.z);
+        for (const call of mocks.decodeStreets.mock.calls) {
+            const coord: Coord = call[1];
+            // The whole failure was x and y surviving from a finer request.
+            expect(coord.x).toBe(PARIS_Z12.x);
+            expect(coord.y).toBe(PARIS_Z12.y);
         }
     });
 });

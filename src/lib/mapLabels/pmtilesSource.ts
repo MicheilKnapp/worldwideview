@@ -127,9 +127,18 @@ function headerCoversTile(header: Header, coord: TileCoord): boolean {
 
 export interface TileResult {
     data: ArrayBuffer;
-    /** Which archive answered, and at which zoom. */
+    /** Which archive answered. */
     archive: string;
-    z: number;
+    /**
+     * The tile that was actually served, which is often a coarser ancestor of
+     * the one requested.
+     *
+     * All three of z, x and y must travel together. A vector tile's geometry is
+     * relative to its own tile, so decoding needs the coordinates of the tile
+     * the bytes came from; pairing the served zoom with the requested x/y puts
+     * every feature thousands of degrees away.
+     */
+    coord: TileCoord;
 }
 
 /**
@@ -180,7 +189,7 @@ export async function getVectorTile(
         try {
             const result = await archive.tiles.getZxy(at.z, at.x, at.y);
             if (result?.data) {
-                return { data: result.data, archive: archive.name, z: at.z };
+                return { data: result.data, archive: archive.name, coord: at };
             }
             // Covered by the box but no tile here: this archive does not hold
             // this ground. Ask the next one.
