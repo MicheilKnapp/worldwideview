@@ -164,7 +164,7 @@ export function useStreetLabels(viewerInstance: CesiumViewer | null, viewerReady
             const key = streetTilesForBbox(rect).map(streetTileCacheKey).join("|");
             if (key === lastKeyRef.current) {
                 // Same tiles: re-thin for the new height without re-fetching.
-                draw(selectStreetLabels(waysRef.current, height));
+                draw(selectStreetLabels(waysRef.current, height, 80, rect));
                 return;
             }
 
@@ -182,7 +182,7 @@ export function useStreetLabels(viewerInstance: CesiumViewer | null, viewerReady
                 if (cancelled || viewer.isDestroyed()) return;
                 waysRef.current = json.ways ?? [];
                 lastKeyRef.current = key;
-                draw(selectStreetLabels(waysRef.current, height));
+                draw(selectStreetLabels(waysRef.current, height, 80, rect));
             } catch {
                 // Aborted or offline. Labels are decoration; keep what is drawn.
             }

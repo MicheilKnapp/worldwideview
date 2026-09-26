@@ -139,14 +139,20 @@ export function anchorsAlong(
     way: StreetWay,
     spacingDeg: number,
     maxPerWay = 4,
+    /**
+     * Skip the minimum-length check. Set when the way is a fragment of a longer
+     * named street: the fragment may be short, but the street is not, and
+     * dropping it would leave a major road unlabelled.
+     */
+    allowShort = false,
 ): StreetAnchor[] {
     const { coords } = way;
     if (coords.length < 2) return [];
 
     const total = polylineLengthDeg(coords);
     // Too short to carry its own name at this zoom; it would collide with
-    // whatever is next to it.
-    if (total < spacingDeg * 0.5) return [];
+    // whatever is next to it. Waived for fragments of a longer street.
+    if (!allowShort && total < spacingDeg * 0.5) return [];
 
     const count = Math.max(1, Math.min(maxPerWay, Math.round(total / spacingDeg)));
     const anchors: StreetAnchor[] = [];
@@ -184,42 +190,237 @@ export function anchorsAlong(
     return anchors;
 }
 
+export interface ViewRect {
+    west: number;
+    south: number;
+    east: number;
+    north: number;
+}
+
+/** Fraction of the view size kept beyond its edges, so panning reveals labels
+ *  that are already placed rather than popping them in. */
+const VIEW_MARGIN = 0.25;
+
+function padView(view: ViewRect): ViewRect {
+    const padLon = Math.abs(view.east - view.west) * VIEW_MARGIN;
+    const padLat = Math.abs(view.north - view.south) * VIEW_MARGIN;
+    return {
+        west: view.west - padLon,
+        east: view.east + padLon,
+        south: view.south - padLat,
+        north: view.north + padLat,
+    };
+}
+
+/**
+ * Clips one segment to the view, returning the visible part or null.
+ *
+ * Liang-Barsky. Needed because keeping only VERTICES inside the view is not an
+ * approximation, it is broken: a straight street crossing a small view has both
+ * endpoints outside it and often no vertex within at all, so a vertex test
+ * discards exactly the roads the viewer is looking at. Measured, that left a
+ * 600m view with one label.
+ */
+function clipSegment(
+    [x0, y0]: [number, number],
+    [x1, y1]: [number, number],
+    view: ViewRect,
+): [[number, number], [number, number]] | null {
+    let t0 = 0;
+    let t1 = 1;
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+
+    // Each edge as (p, q): the segment is inside when p*t <= q.
+    const edges: [number, number][] = [
+        [-dx, x0 - view.west],
+        [dx, view.east - x0],
+        [-dy, y0 - view.south],
+        [dy, view.north - y0],
+    ];
+
+    for (const [p, q] of edges) {
+        if (p === 0) {
+            // Parallel to this edge: outside it means the whole segment is out.
+            if (q < 0) return null;
+            continue;
+        }
+        const r = q / p;
+        if (p < 0) {
+            if (r > t1) return null;
+            if (r > t0) t0 = r;
+        } else {
+            if (r < t0) return null;
+            if (r < t1) t1 = r;
+        }
+    }
+
+    return [
+        [x0 + t0 * dx, y0 + t0 * dy],
+        [x0 + t1 * dx, y0 + t1 * dy],
+    ];
+}
+
+/**
+ * Splits a way into the parts of it that fall inside the view.
+ *
+ * Labels must be placed along the VISIBLE part of a street, not along its whole
+ * length. A road crossing a small view usually extends far beyond it, so
+ * spacing anchors over its full extent and discarding the off-screen ones
+ * leaves the view almost unlabelled.
+ *
+ * Clipped pieces that continue from one another are joined into a single run, so
+ * a street crossing the view yields one continuous line to place labels along
+ * rather than one per segment.
+ */
+export function clipToView(
+    coords: [number, number][],
+    view: ViewRect,
+): [number, number][][] {
+    const runs: [number, number][][] = [];
+    let current: [number, number][] = [];
+
+    const samePoint = (a: [number, number], b: [number, number]) =>
+        Math.abs(a[0] - b[0]) < 1e-9 && Math.abs(a[1] - b[1]) < 1e-9;
+
+    for (let i = 1; i < coords.length; i++) {
+        const piece = clipSegment(coords[i - 1], coords[i], view);
+        if (!piece) {
+            if (current.length >= 2) runs.push(current);
+            current = [];
+            continue;
+        }
+        const [from, to] = piece;
+        if (current.length === 0) {
+            current.push(from, to);
+        } else if (samePoint(current[current.length - 1], from)) {
+            current.push(to);
+        } else {
+            // A gap: the segment left the view and came back elsewhere.
+            if (current.length >= 2) runs.push(current);
+            current = [from, to];
+        }
+    }
+    if (current.length >= 2) runs.push(current);
+    return runs;
+}
+
+/** Most labels one street name may have in view, however long it is. */
+const MAX_LABELS_PER_NAME = 3;
+
+/**
+ * Groups ways by name, longest first within each group.
+ *
+ * OSM splits a road into many separate ways — a single arterial is routinely
+ * dozens of `way` elements a few hundred metres each. Treating each fragment as
+ * its own street breaks placement at both ends of the zoom range: at wide zoom
+ * every fragment is shorter than the label spacing and gets skipped, so a major
+ * road goes unlabelled entirely; at close zoom every fragment competes for its
+ * own label and the name repeats down the street.
+ */
+export function groupByName(ways: StreetWay[]): Map<string, StreetWay[]> {
+    const groups = new Map<string, StreetWay[]>();
+    for (const way of ways) {
+        const existing = groups.get(way.name);
+        if (existing) existing.push(way);
+        else groups.set(way.name, [way]);
+    }
+    for (const group of groups.values()) {
+        group.sort((a, b) => polylineLengthDeg(b.coords) - polylineLengthDeg(a.coords));
+    }
+    return groups;
+}
+
 /**
  * Chooses which street labels to draw.
  *
- * Thins by class first, then spacing, then repetition: the same street name
- * appearing three times within a block is noise, not information.
+ * Class filter, then one pass per street name over its visible geometry, then a
+ * spatial thin against other names.
  */
 export function selectStreetLabels(
     ways: StreetWay[],
     cameraHeightM: number,
     limit = 80,
+    /** The visible rectangle. Without it, placement spans a whole tile and the
+     *  label budget is spent off screen. */
+    view?: ViewRect,
 ): StreetAnchor[] {
     if (cameraHeightM > MAX_STREET_LABEL_HEIGHT_M) return [];
 
     const maxRank = minimumHighwayRankForHeight(cameraHeightM);
     const spacing = labelSpacingDegrees(cameraHeightM);
+    const clip = view ? padView(view) : null;
 
-    const candidates = ways
-        .filter((w) => highwayRank(w.kind) <= maxRank)
-        .sort((a, b) => highwayRank(a.kind) - highwayRank(b.kind))
-        .flatMap((w) => anchorsAlong(w, spacing));
+    const eligible = ways.filter((w) => highwayRank(w.kind) <= maxRank);
+    const groups = groupByName(eligible);
+
+    interface Candidate {
+        rank: number;
+        visibleLength: number;
+        pieces: { id: string; name: string; kind: HighwayClass; coords: [number, number][] }[];
+    }
+
+    const candidates: Candidate[] = [];
+    for (const [name, group] of groups) {
+        const pieces: Candidate["pieces"] = [];
+        let visibleLength = 0;
+
+        for (const way of group) {
+            const runs = clip ? clipToView(way.coords, clip) : [way.coords];
+            for (const coords of runs) {
+                const length = polylineLengthDeg(coords);
+                if (length <= 0) continue;
+                visibleLength += length;
+                pieces.push({ id: way.id, name, kind: way.kind, coords });
+            }
+        }
+        if (pieces.length === 0) continue;
+
+        pieces.sort((a, b) => polylineLengthDeg(b.coords) - polylineLengthDeg(a.coords));
+        candidates.push({ rank: highwayRank(group[0].kind), visibleLength, pieces });
+    }
+
+    // Most significant, then longest on screen, so the streets that orient the
+    // viewer survive the cap.
+    candidates.sort((a, b) => a.rank - b.rank || b.visibleLength - a.visibleLength);
+
+    const anchors: StreetAnchor[] = [];
+    for (const candidate of candidates) {
+        // Label count follows how much of the street is ON SCREEN, so density
+        // stays even as the camera moves rather than depending on how far the
+        // road happens to run beyond the view.
+        const wanted = Math.max(
+            1,
+            Math.min(MAX_LABELS_PER_NAME, Math.round(candidate.visibleLength / spacing)),
+        );
+
+        let placed = 0;
+        for (const piece of candidate.pieces) {
+            if (placed >= wanted) break;
+            const placedHere = anchorsAlong(
+                { id: piece.id, name: piece.name, kind: piece.kind, coords: piece.coords },
+                spacing,
+                wanted - placed,
+                true,
+            );
+            for (const anchor of placedHere) {
+                if (placed >= wanted) break;
+                anchors.push(anchor);
+                placed++;
+            }
+        }
+    }
 
     const kept: StreetAnchor[] = [];
-    for (const anchor of candidates) {
+    for (const anchor of anchors) {
         if (kept.length >= limit) break;
         const tooClose = kept.some((k) => {
-            // Anchors from the same way are deliberately spaced along it by
-            // anchorsAlong. Suppressing those would leave one name on a long
-            // road, which is the problem this whole module exists to avoid.
-            if (k.wayId === anchor.wayId) return false;
-
             const dLat = Math.abs(k.lat - anchor.lat);
             const dLon = Math.abs(k.lon - anchor.lon) * lonScale(anchor.lat);
-            // The same name arriving from a DIFFERENT way is a street split
-            // into segments, and needs far more room than a neighbouring
-            // street's name does before it earns a second label.
-            const gap = k.name === anchor.name ? spacing * 3 : spacing * 0.5;
+            // Per-name counts are capped above, so this pass only stops
+            // different names colliding, plus a wider berth for a repeat of the
+            // same name, which reads as redundant rather than as two labels.
+            const gap = k.name === anchor.name ? spacing * 2 : spacing * 0.5;
             return dLat < gap && dLon < gap;
         });
         if (!tooClose) kept.push(anchor);
