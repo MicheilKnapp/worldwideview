@@ -155,6 +155,63 @@ describe("getVectorTile archive selection", () => {
         expect(result?.archive).toBe("/d/na.pmtiles");
     });
 
+    /**
+     * The regression that broke Europe on the live site.
+     *
+     * Cutting the US tier from a GeoJSON region that includes the western
+     * Aleutians gives a header spanning -180..180 in longitude, because Alaska
+     * and the Aleutians sit either side of the antimeridian. us.pmtiles then
+     * claims to cover Paris, Tokyo and everything else at that latitude.
+     */
+    it("serves a European tile from the world archive despite a globe-spanning US header", async () => {
+        const GLOBE_SPANNING_US = {
+            ...US_HEADER,
+            minLon: -180,
+            maxLon: 180,
+            minLat: 17.8,
+            maxLat: 72,
+        };
+        getHeader.mockImplementation((loc: string) => {
+            if (loc.includes("us")) return Promise.resolve(GLOBE_SPANNING_US);
+            if (loc.includes("na")) return Promise.resolve(NA_HEADER);
+            return Promise.resolve(WORLD_HEADER);
+        });
+
+        // Paris, requested at street zoom as the label pipeline does.
+        const coord = tileAt(2.35, 48.86, 15);
+        getZxy.mockImplementation((loc: string, z: number) =>
+            loc.includes("world") && z === 9
+                ? Promise.resolve({ data: new ArrayBuffer(8) })
+                : Promise.resolve(undefined),
+        );
+
+        const result = await getVectorTile(coord);
+        expect(result?.archive).toBe("/d/world.pmtiles");
+        expect(result?.z).toBe(9);
+        // The US archive must be asked at ITS max zoom, not the requested z15.
+        expect(getZxy).toHaveBeenCalledWith(
+            "/d/us.pmtiles",
+            14,
+            expect.any(Number),
+            expect.any(Number),
+        );
+    });
+
+    it("asks each archive at its own maximum zoom, not the requested one", async () => {
+        const coord = tileAt(DENVER.lon, DENVER.lat, 15);
+        getZxy.mockResolvedValue(undefined);
+        await getVectorTile(coord);
+
+        const asked = getZxy.mock.calls.map((c) => [c[0] as string, c[1] as number]);
+        expect(asked).toEqual(
+            expect.arrayContaining([
+                ["/d/us.pmtiles", 14],
+                ["/d/na.pmtiles", 12],
+                ["/d/world.pmtiles", 9],
+            ]),
+        );
+    });
+
     it("skips an archive whose header cannot be read", async () => {
         const coord = tileAt(DENVER.lon, DENVER.lat, 12);
         getHeader.mockImplementation((loc: string) => {
