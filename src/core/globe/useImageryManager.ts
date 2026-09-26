@@ -8,10 +8,15 @@ import {
     Cesium3DTileStyle,
     Terrain,
     UrlTemplateImageryProvider,
-    createOsmBuildingsAsync
+    createOsmBuildingsAsync,
+    Color
 } from "cesium";
 import { useStore } from "@/core/state/store";
 import { createImageryProvider, createOsmProvider } from "./ImageryProviderFactory";
+import { GLOBE_BASE_COLOR_CSS, waitForTiles } from "./imageryTransition";
+
+/** Built once: Cesium keeps a reference, and re-parsing per transition is waste. */
+const GLOBE_BASE_COLOR = Color.fromCssColorString(GLOBE_BASE_COLOR_CSS);
 
 export function useImageryManager(viewerInstance: CesiumViewer | null, viewerReady: boolean) {
     const viewer = viewerInstance;
@@ -51,72 +56,93 @@ export function useImageryManager(viewerInstance: CesiumViewer | null, viewerRea
     useEffect(() => {
         if (!viewer || !viewerReady || viewer.isDestroyed()) return;
 
+        let cancelled = false;
+
+        /** The Google Photorealistic tileset, if it has been added yet. */
+        function findGoogleTileset(): Cesium3DTileset | null {
+            if (!viewer) return null;
+            const { primitives } = viewer.scene;
+            for (let i = 0; i < primitives.length; i++) {
+                const p = primitives.get(i);
+                // Skip the OSM buildings tileset, which is tagged on creation.
+                if (p instanceof Cesium3DTileset && !(p as { _wwvOsmBuildings?: boolean })._wwvOsmBuildings) {
+                    return p;
+                }
+            }
+            return null;
+        }
+
         async function updateImagery() {
             if (!viewer || !viewerReady || viewer.isDestroyed()) return;
 
-            // Handle Google 3D Tiles specifically
+            // Whatever the globe shows before imagery arrives should read as
+            // unloaded terrain rather than a hole in the map.
+            viewer.scene.globe.baseColor = GLOBE_BASE_COLOR;
+
             const isGoogle3D = activeLayerId === "google-3d";
+            const tileset = findGoogleTileset();
+            const outgoingLayer = currentImageryLayerRef.current;
 
-            // Toggle Google 3D Tileset visibility if it exists
-            // Or find it in primitives
-            const {primitives} = viewer.scene;
-            let foundTileset: Cesium3DTileset | null = null;
-
-            for (let i = 0; i < primitives.length; i++) {
-                const p = primitives.get(i);
-                // Find the Google tileset — skip any tagged as OSM buildings
-                if (p instanceof Cesium3DTileset && !(p as any)._wwvOsmBuildings) {
-                    foundTileset = p;
-                    break;
-                }
-            }
-
-            if (foundTileset) {
-                foundTileset.show = isGoogle3D;
-            }
-
-            // If we are in Google 3D mode, we usually hide the globe surface
-            // to avoid z-fighting or showing low-res imagery underneath
-            viewer.scene.globe.show = !isGoogle3D;
-
-            // Manage standard imagery layer
             if (isGoogle3D) {
-                // Remove current custom imagery if switching to Google 3D
-                if (currentImageryLayerRef.current) {
-                    viewer.imageryLayers.remove(currentImageryLayerRef.current);
-                    currentImageryLayerRef.current = null;
+                // Switching TO the 3D tileset. Reveal it and let it load while the
+                // existing imagery keeps covering the surface; only once it has
+                // tiles is it safe to hide the globe underneath.
+                if (!tileset) return;
+                tileset.show = true;
+                await waitForTiles(tileset);
+                if (cancelled || viewer.isDestroyed()) return;
+
+                viewer.scene.globe.show = false;
+                if (outgoingLayer) {
+                    viewer.imageryLayers.remove(outgoingLayer);
+                    if (currentImageryLayerRef.current === outgoingLayer) {
+                        currentImageryLayerRef.current = null;
+                    }
                 }
-            } else {
-                // Instantiate and Add new imagery provider
+                return;
+            }
+
+            // Switching TO an imagery layer. Build it BEFORE touching anything
+            // visible: this await previously ran after globe.show was set true,
+            // which left the globe bare for the length of the provider's network
+            // round trip — the momentary blackout.
+            let newLayer: ImageryLayer;
+            try {
+                newLayer = new ImageryLayer(await createImageryProvider(activeLayerId));
+            } catch (err) {
+                console.error("[useImageryManager] Failed to load imagery:", activeLayerId, err);
                 try {
-                    const provider = await createImageryProvider(activeLayerId);
-                    const newLayer = new ImageryLayer(provider);
-
-                    if (currentImageryLayerRef.current) {
-                        viewer.imageryLayers.remove(currentImageryLayerRef.current);
-                    }
-
-                    // Add as base layer (bottom)
-                    if (viewer.isDestroyed()) return;
-                    viewer.imageryLayers.add(newLayer, 0);
-                    currentImageryLayerRef.current = newLayer;
-                } catch (err) {
-                    console.error("[useImageryManager] Failed to load imagery:", activeLayerId, err);
-                    try {
-                        const osmProvider = createOsmProvider();
-                        const osmLayer = new ImageryLayer(osmProvider);
-                        if (viewer.isDestroyed()) return;
-                        viewer.imageryLayers.add(osmLayer, 0);
-                        currentImageryLayerRef.current = osmLayer;
-                        console.warn("[useImageryManager] Loaded OSM as fallback imagery");
-                    } catch (fallbackErr) {
-                        console.error("[useImageryManager] OSM fallback also failed:", fallbackErr);
-                    }
+                    newLayer = new ImageryLayer(createOsmProvider());
+                    console.warn("[useImageryManager] Loaded OSM as fallback imagery");
+                } catch (fallbackErr) {
+                    console.error("[useImageryManager] OSM fallback also failed:", fallbackErr);
+                    return;
                 }
             }
+            if (cancelled || viewer.isDestroyed()) return;
+
+            // Index 0 keeps the weather overlay on top, and leaves any outgoing
+            // layer above this one so it goes on covering the surface until the
+            // new tiles are in.
+            viewer.imageryLayers.add(newLayer, 0);
+            currentImageryLayerRef.current = newLayer;
+            viewer.scene.globe.show = true;
+
+            await waitForTiles(viewer.scene.globe);
+            if (cancelled || viewer.isDestroyed()) return;
+
+            // Retire the outgoing surface only now that the incoming one has
+            // something to show.
+            if (outgoingLayer) viewer.imageryLayers.remove(outgoingLayer);
+            if (tileset) tileset.show = false;
         }
 
         updateImagery();
+        return () => {
+            // A fast zoom across the threshold can start a second transition
+            // before the first finishes; the loser must not apply stale changes.
+            cancelled = true;
+        };
     }, [viewer, viewerReady, baseLayerId, fallbackLayerId, zoomLayerId]);
 
     // 3. Enable Cesium World Terrain for non-Google 3D mode.
