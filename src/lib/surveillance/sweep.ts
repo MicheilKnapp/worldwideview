@@ -9,6 +9,7 @@
  */
 
 import { redis } from "@/lib/redis";
+import { acquireLock, isLockHeld, releaseLock } from "@/lib/redisLock";
 
 import { fetchTier } from "./overpass";
 import { mergeByPriority, toRecord } from "./normalize";
@@ -58,33 +59,9 @@ export interface SweepResult {
 
 export async function isSweepRunning(): Promise<boolean> {
     try {
-        return (await redis.get(LOCK_KEY)) !== null;
+        return await isLockHeld(LOCK_KEY);
     } catch {
         return false;
-    }
-}
-
-/**
- * Takes the sweep lock, or returns false if another process holds it.
- *
- * Atomic (SET NX) rather than get-then-set: the app runs under `pm2 -i 4`, so
- * four workers boot at once and a read-then-write race would let all four
- * start the same global Overpass sweep.
- */
-async function acquireLock(): Promise<boolean> {
-    try {
-        return (await redis.set(LOCK_KEY, String(process.pid), "EX", LOCK_TTL_SECONDS, "NX")) === "OK";
-    } catch (err) {
-        console.warn("[surveillance-sweep] could not reach Redis for the lock:", err);
-        return false;
-    }
-}
-
-async function releaseLock(): Promise<void> {
-    try {
-        await redis.del(LOCK_KEY);
-    } catch {
-        // The TTL clears it regardless; worst case is a delayed next sweep.
     }
 }
 
@@ -93,7 +70,7 @@ async function releaseLock(): Promise<void> {
  * @returns the result, or null when the lock was held elsewhere.
  */
 export async function runSweep(): Promise<SweepResult | null> {
-    if (!(await acquireLock())) {
+    if (!(await acquireLock(LOCK_KEY, LOCK_TTL_SECONDS))) {
         console.log("[surveillance-sweep] another process holds the lock — skipping");
         return null;
     }
@@ -201,6 +178,6 @@ export async function runSweep(): Promise<SweepResult | null> {
             degradedTiers: degraded,
         };
     } finally {
-        await releaseLock();
+        await releaseLock(LOCK_KEY);
     }
 }

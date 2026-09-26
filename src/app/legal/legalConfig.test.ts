@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const KEYS = [
-    "NEXT_PUBLIC_LEGAL_OPERATOR",
-    "NEXT_PUBLIC_LEGAL_CONTACT_EMAIL",
-    "NEXT_PUBLIC_LEGAL_JURISDICTION",
+    "LEGAL_OPERATOR",
+    "LEGAL_CONTACT_EMAIL",
+    "LEGAL_JURISDICTION",
 ] as const;
 
 describe("legalConfig", () => {
@@ -34,24 +34,24 @@ describe("legalConfig", () => {
     });
 
     it("stays unconfigured when a value is only whitespace", async () => {
-        process.env.NEXT_PUBLIC_LEGAL_OPERATOR = "  ";
-        process.env.NEXT_PUBLIC_LEGAL_CONTACT_EMAIL = "legal@example.test";
-        process.env.NEXT_PUBLIC_LEGAL_JURISDICTION = "Nowhere";
+        process.env.LEGAL_OPERATOR = "  ";
+        process.env.LEGAL_CONTACT_EMAIL = "legal@example.test";
+        process.env.LEGAL_JURISDICTION = "Nowhere";
         const m = await import("./legalConfig");
         expect(m.IS_CONFIGURED).toBe(false);
     });
 
     it("is unconfigured until every value is present", async () => {
-        process.env.NEXT_PUBLIC_LEGAL_OPERATOR = "Example Operator";
+        process.env.LEGAL_OPERATOR = "Example Operator";
         const partial = await import("./legalConfig");
         expect(partial.IS_CONFIGURED).toBe(false);
         expect(partial.operatorName()).toBe("Example Operator");
     });
 
     it("is configured once all three are set", async () => {
-        process.env.NEXT_PUBLIC_LEGAL_OPERATOR = "Example Operator";
-        process.env.NEXT_PUBLIC_LEGAL_CONTACT_EMAIL = "legal@example.test";
-        process.env.NEXT_PUBLIC_LEGAL_JURISDICTION = "the State of Example";
+        process.env.LEGAL_OPERATOR = "Example Operator";
+        process.env.LEGAL_CONTACT_EMAIL = "legal@example.test";
+        process.env.LEGAL_JURISDICTION = "the State of Example";
         const m = await import("./legalConfig");
         expect(m.IS_CONFIGURED).toBe(true);
         expect(m.operatorName()).toBe("Example Operator");
@@ -62,5 +62,16 @@ describe("legalConfig", () => {
     it("formats the last-updated date stably in UTC", async () => {
         const m = await import("./legalConfig");
         expect(m.formattedDate()).toBe("26 September 2026");
+    });
+});
+
+describe("age constants", () => {
+    it("matches the answers the documents are written against", async () => {
+        const m = await import("./legalConfig");
+        // 13 is the COPPA floor; 16 is the GDPR Art. 8 default, and the terms
+        // require parental authorisation between the two.
+        expect(m.MIN_AGE).toBe(13);
+        expect(m.EU_CONSENT_AGE).toBe(16);
+        expect(m.MIN_AGE).toBeLessThan(m.EU_CONSENT_AGE);
     });
 });

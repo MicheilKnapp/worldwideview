@@ -28,6 +28,12 @@ export async function register() {
     // SURVEILLANCE_AUTO_SWEEP=0.
     const { startSurveillanceScheduler } = await import("@/lib/surveillance/scheduler");
     startSurveillanceScheduler();
+
+    // Removes expired guest accounts. "Continue as Guest" creates a real but
+    // temporary user, and nothing deleted those: cleanup:guests was a manual
+    // script scheduled nowhere. Disable with GUEST_CLEANUP=0.
+    const { startGuestCleanupScheduler } = await import("@/lib/guestCleanup");
+    startGuestCleanupScheduler();
   }
 
   if (process.env.NEXT_RUNTIME === "edge") {

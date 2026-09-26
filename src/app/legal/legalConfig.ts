@@ -6,16 +6,30 @@
  * rather than being hardcoded, and the pages state plainly when they have not
  * been set, so an unconfigured instance cannot quietly present an incomplete
  * document as if it were finished.
+ *
+ * Deliberately NOT prefixed NEXT_PUBLIC_: the legal pages are server
+ * components, so these are read at request time. A prefixed variable is inlined
+ * at build time, which would mean a Docker rebuild every time a contact address
+ * or governing jurisdiction changed.
  */
 
 /** Name of the person or entity operating this instance. */
-export const OPERATOR = process.env.NEXT_PUBLIC_LEGAL_OPERATOR?.trim() || "";
+export const OPERATOR = process.env.LEGAL_OPERATOR?.trim() || "";
 /** Contact address for privacy requests and legal notices. */
-export const CONTACT_EMAIL = process.env.NEXT_PUBLIC_LEGAL_CONTACT_EMAIL?.trim() || "";
+export const CONTACT_EMAIL = process.env.LEGAL_CONTACT_EMAIL?.trim() || "";
 /** Governing jurisdiction, e.g. "the State of New York, United States". */
-export const JURISDICTION = process.env.NEXT_PUBLIC_LEGAL_JURISDICTION?.trim() || "";
+export const JURISDICTION = process.env.LEGAL_JURISDICTION?.trim() || "";
 /** Public hostname, used in the documents to name the service. */
-export const SITE_NAME = process.env.NEXT_PUBLIC_LEGAL_SITE_NAME?.trim() || "this instance";
+export const SITE_NAME = process.env.LEGAL_SITE_NAME?.trim() || "this instance";
+
+/**
+ * Minimum age to hold an account. 13 is the COPPA floor in the US; EU/UK
+ * visitors between 13 and 16 need parental authorisation under GDPR Art. 8,
+ * which the terms state explicitly.
+ */
+export const MIN_AGE = 13;
+/** Age below which GDPR Art. 8 requires parental authorisation. */
+export const EU_CONSENT_AGE = 16;
 
 /** ISO date the wording last changed. Bump when editing the pages. */
 export const LAST_UPDATED = "2026-09-26";
