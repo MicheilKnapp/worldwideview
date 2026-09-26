@@ -12,6 +12,17 @@ import {
     operatorName,
 } from "../legalConfig";
 
+/**
+ * Rendered per request, not prerendered.
+ *
+ * The operator details come from plain (unprefixed) environment variables, which
+ * exist only at container runtime -- they are in the compose `environment:`
+ * block, not in build args. A static prerender would read them at BUILD time,
+ * find them unset, and bake the "this document is not finished" notice into the
+ * shipped HTML while the values were in fact configured.
+ */
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
     title: "Terms of Service",
     description: "Terms governing use of this WorldWideView instance.",
