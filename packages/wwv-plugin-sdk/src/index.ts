@@ -316,6 +316,12 @@ export type DataBusEvents = {
     cameraFaceTowards: { lat: number; lon: number; alt: number };
     cameraGoTo: { lat: number; lon: number; alt: number; distance?: number; maxPitch?: number; heading?: number };
     cameraFlyToBbox: { west: number; south: number; east: number; north: number };
+    /**
+     * Re-centre the view on a point WITHOUT changing how much ground is
+     * visible. Distinct from cameraGoTo, which derives its own view distance
+     * and so changes the zoom level.
+     */
+    cameraCenterOn: { lat: number; lon: number };
     globeReady: Record<string, never>;
     pluginError: { pluginId?: string; message: string; error?: Error };
     layerLoadingChanged: { pluginId: string; loading: boolean };

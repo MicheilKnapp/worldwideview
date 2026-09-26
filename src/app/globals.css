@@ -2190,3 +2190,14 @@ body.is-dragging-bottom-panel .bottom-panel {
   cursor: pointer;
   accent-color: var(--accent, #5aa9e6);
 }
+
+/* Spinner shown while a location fix is pending. */
+@keyframes locate-me-spin { to { transform: rotate(360deg); } }
+
+.locate-me__spinner {
+  animation: locate-me-spin 900ms linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .locate-me__spinner { animation: none; }
+}

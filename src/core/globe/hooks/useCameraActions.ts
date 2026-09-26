@@ -140,6 +140,46 @@ export function useCameraActions(viewer: CesiumViewer | null, isReady: boolean) 
             }, 50);
         });
 
+        // Re-centre on a point while keeping the visible extent identical, so
+        // "at my current zoom level" means exactly that.
+        //
+        // Implemented by rebuilding the CURRENT view rectangle around the new
+        // centre and flying to that, rather than reusing the camera height.
+        // Height alone does not determine what is visible once the camera is
+        // tilted, and Cesium centres a Rectangle destination for us, so this
+        // both preserves the zoom and guarantees the point ends up centred.
+        const unsubCenterOn = dataBus.on("cameraCenterOn", ({ lat, lon }) => {
+            if (!viewer || viewer.isDestroyed()) return;
+
+            const current = viewer.camera.computeViewRectangle();
+            if (current) {
+                const halfWidth = Rectangle.computeWidth(current) / 2;
+                const halfHeight = Rectangle.computeHeight(current) / 2;
+                const centreLon = CesiumMath.toRadians(lon);
+                const centreLat = CesiumMath.toRadians(lat);
+                viewer.camera.flyTo({
+                    destination: new Rectangle(
+                        centreLon - halfWidth,
+                        Math.max(centreLat - halfHeight, -CesiumMath.PI_OVER_TWO),
+                        centreLon + halfWidth,
+                        Math.min(centreLat + halfHeight, CesiumMath.PI_OVER_TWO),
+                    ),
+                    duration: 1.5,
+                });
+                return;
+            }
+
+            // computeViewRectangle returns undefined when the camera is not
+            // looking at the globe (fully zoomed out, or mid-morph). Fall back
+            // to the camera's own height.
+            const height = viewer.camera.positionCartographic?.height;
+            if (!Number.isFinite(height)) return;
+            viewer.camera.flyTo({
+                destination: Cartesian3.fromDegrees(lon, lat, height),
+                duration: 1.5,
+            });
+        });
+
         const unsubFlyToBbox = dataBus.on("cameraFlyToBbox", ({ west, south, east, north }) => {
             setTimeout(() => {
                 if (!viewer || viewer.isDestroyed()) return;
@@ -154,6 +194,7 @@ export function useCameraActions(viewer: CesiumViewer | null, isReady: boolean) 
         return () => {
             unsubFace();
             unsubGoTo();
+            unsubCenterOn();
             unsubFlyToBbox();
         };
     }, [viewer, isReady]);

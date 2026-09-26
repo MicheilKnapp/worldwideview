@@ -22,6 +22,7 @@ import Image from "next/image";
 const HUB_URL = process.env.NEXT_PUBLIC_HUB_URL ?? "https://worldwideview.dev"
 import { useIsMobile } from "@/core/hooks/useIsMobile";
 import { SearchBar } from "./SearchBar";
+import { LocateMeButton } from "./LocateMeButton";
 import { authClient } from "@/lib/auth-client";
 import { ApiKeysTab } from "./ApiKeysTab";
 import { PersonalApiKeysSection } from "./PersonalApiKeysSection";
@@ -138,6 +139,7 @@ export function Header() {
               </div>
 
               <div className="header__actions" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <LocateMeButton />
                 <div style={{ position: "relative" }}>
                   <button
                     ref={themeButtonRef}
