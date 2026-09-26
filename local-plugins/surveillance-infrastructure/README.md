@@ -10,6 +10,10 @@ with facing direction.
 | Facial recognition | Cameras tagged `surveillance:type=AFR` | yes |
 | Public-space camera | Municipal cameras in town/street zones | **no — operator unknown** |
 
+The typed tiers match on `surveillance:type` alone and deliberately do not
+also require `man_made=surveillance`. Requiring both drops devices: AFR
+returns 67 nodes on the tag alone but only 3 when gated on `man_made`.
+
 ## The unverified tier
 
 OpenStreetMap has no `surveillance:type=police`, and `surveillance:operator` is

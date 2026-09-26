@@ -12,6 +12,13 @@
  *   surveillance:type=AFR                    67
  *   surveillance=public                 287,060  (narrowed by surveillance:zone)
  *
+ * The typed tiers deliberately do NOT also require `man_made=surveillance`.
+ * `surveillance:type` is a definitive discriminator by itself, and requiring
+ * both silently drops devices: measured against live Overpass, AFR returns 67
+ * nodes on the tag alone but only 3 when `man_made=surveillance` is also
+ * required. ALPR and gunshot_detector are effectively unaffected (they are
+ * tagged with both), so this only ever adds coverage.
+ *
  * The ALPR matcher is a case-insensitive *substring* on purpose: it picks up
  * `alpr`, `camera;ALPR`, `ALPR;camera` and `ALPR;guard`, which an exact `="ALPR"`
  * match silently drops. The other matchers are anchored — a substring match on
@@ -40,23 +47,23 @@ export const TIERS: readonly Tier[] = [
     {
         id: "alpr",
         label: "Licence plate readers (ALPR)",
-        selector: '["man_made"="surveillance"]["surveillance:type"~"ALPR",i]',
+        selector: '["surveillance:type"~"ALPR",i]',
         verified: true,
         approxCount: 153_800,
     },
     {
         id: "gunshot_detector",
         label: "Gunshot detectors",
-        selector: '["man_made"="surveillance"]["surveillance:type"~"^gunshot_detector$",i]',
+        selector: '["surveillance:type"~"^gunshot_detector$",i]',
         verified: true,
         approxCount: 3_700,
     },
     {
         id: "afr",
         label: "Facial recognition cameras",
-        selector: '["man_made"="surveillance"]["surveillance:type"~"^AFR$",i]',
+        selector: '["surveillance:type"~"^AFR$",i]',
         verified: true,
-        approxCount: 70,
+        approxCount: 70, // tag-alone count; was 3 under the old man_made-gated query
     },
     {
         id: "public_space",
