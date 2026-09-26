@@ -21,6 +21,23 @@ import type { PlaceLabel } from "@/lib/mapLabels/places";
 const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 /**
+ * An empty tile is cached briefly, not for a week.
+ *
+ * Emptiness is far more often a symptom than a fact: a throttled upstream, a
+ * misconfigured archive, a header whose bounds overstate its contents. Storing
+ * that for the full TTL turns a few minutes of trouble into a week of blank map
+ * that reads as a rendering bug — which is what happened when Overpass throttled
+ * this client, and again when a globe-spanning archive header made European
+ * tiles resolve to nothing. Genuinely empty ground costs an occasional re-read.
+ */
+const EMPTY_TTL_SECONDS = 60 * 60;
+
+/** Full TTL for a tile with content, a short one for an empty answer. */
+function ttlFor(count: number): number {
+    return count > 0 ? CACHE_TTL_SECONDS : EMPTY_TTL_SECONDS;
+}
+
+/**
  * Circuit breaker for upstream failures.
  *
  * When Overpass starts refusing us — throttling, or simply being down — the
@@ -98,7 +115,7 @@ export async function GET(request: Request) {
                 const places = await fetchPlacesFromTiles(box);
                 if (places) {
                     try {
-                        await redis.set(key, JSON.stringify(places), "EX", CACHE_TTL_SECONDS);
+                        await redis.set(key, JSON.stringify(places), "EX", ttlFor(places.length));
                     } catch (err) {
                         console.warn("[map-labels] cache write failed:", err);
                     }
@@ -124,7 +141,7 @@ export async function GET(request: Request) {
                 east: box.east,
             });
             try {
-                await redis.set(key, JSON.stringify(places), "EX", CACHE_TTL_SECONDS);
+                await redis.set(key, JSON.stringify(places), "EX", ttlFor(places.length));
             } catch (err) {
                 console.warn("[map-labels] cache write failed:", err);
             }
