@@ -18,6 +18,19 @@ import { GLOBE_BASE_COLOR_CSS, waitForTiles } from "./imageryTransition";
 /** Built once: Cesium keeps a reference, and re-parsing per transition is waste. */
 const GLOBE_BASE_COLOR = Color.fromCssColorString(GLOBE_BASE_COLOR_CSS);
 
+/** Fill colour for OSM 3D Buildings. */
+const OSM_BUILDING_COLOR = "#E0DDD5";
+/**
+ * Building opacity.
+ *
+ * Street and place names are baked into the base imagery, which sits on the
+ * globe surface, while these buildings are solid geometry above it — so opaque
+ * buildings hide the labels underneath exactly where they matter most, at
+ * close zoom. Translucent fill lets the names read through while the massing
+ * and outlines stay legible.
+ */
+const OSM_BUILDING_ALPHA = 0.5;
+
 export function useImageryManager(viewerInstance: CesiumViewer | null, viewerReady: boolean) {
     const viewer = viewerInstance;
     const baseLayerId = useStore((s) => s.mapConfig.baseLayerId);
@@ -191,7 +204,7 @@ export function useImageryManager(viewerInstance: CesiumViewer | null, viewerRea
                 (tileset as any)._wwvOsmBuildings = true;
                 tileset.maximumScreenSpaceError = 16;
                 tileset.style = new Cesium3DTileStyle({
-                    color: "color('#E0DDD5')",
+                    color: `color('${OSM_BUILDING_COLOR}', ${OSM_BUILDING_ALPHA})`,
                 });
                 viewer.scene.primitives.add(tileset);
                 osmBuildingsRef.current = tileset;
