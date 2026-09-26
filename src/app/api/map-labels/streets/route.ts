@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { getClientIp, mapLabelsLimiter } from "@/lib/rateLimiters";
 import { fetchStreets } from "@/lib/mapLabels/fetchStreets";
+import { fetchStreetsFromTiles, tilesAvailable } from "@/lib/mapLabels/fetchFromTiles";
 import { streetTileCacheKey, streetTilesForBbox, tileBbox } from "@/lib/mapLabels/tiles";
 import type { StreetWay } from "@/lib/mapLabels/streets";
 import { parseBbox } from "@/lib/surveillance/regions";
@@ -56,6 +57,26 @@ export async function GET(request: Request) {
             if (cached) return { ways: JSON.parse(cached) as StreetWay[], failed: false };
         } catch (err) {
             console.warn("[map-labels/streets] cache read failed:", err);
+        }
+
+        // Local PMTiles archives when configured; Overpass only as a fallback.
+        if (tilesAvailable()) {
+            try {
+                const ways = await fetchStreetsFromTiles(tileBbox(tile));
+                if (ways) {
+                    try {
+                        await redis.set(key, JSON.stringify(ways), "EX", CACHE_TTL_SECONDS);
+                    } catch (err) {
+                        console.warn("[map-labels/streets] cache write failed:", err);
+                    }
+                    return { ways, failed: false };
+                }
+            } catch (err) {
+                console.error(
+                    "[map-labels/streets] pmtiles read failed, falling back to Overpass:",
+                    err instanceof Error ? err.message : err,
+                );
+            }
         }
 
         if (skipUpstream) return { ways: [], failed: true };

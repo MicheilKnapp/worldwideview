@@ -1,6 +1,6 @@
 {
   "name": "worldwideview",
-"version": "2.78.0",
+  "version": "2.79.0",
   "private": true,
   "license": "EL-2.0",
   "type": "module",
@@ -32,8 +32,9 @@
     "generate": "prisma generate"
   },
   "dependencies": {
-"@better-auth/api-key": "^1.6.23",
+    "@better-auth/api-key": "^1.6.23",
     "@better-auth/prisma-adapter": "1.6.23",
+    "@mapbox/vector-tile": "^3.0.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
@@ -59,7 +60,9 @@
     "lucide-react": "^1.23.0",
     "next": "16.2.10",
     "openid-client": "^6.8.4",
+    "pbf": "^5.1.2",
     "pg": "^8.22.0",
+    "pmtiles": "^4.5.0",
     "prisma": "^7.8.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",

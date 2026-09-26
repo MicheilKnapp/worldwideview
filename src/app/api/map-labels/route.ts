@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { getClientIp, mapLabelsLimiter } from "@/lib/rateLimiters";
 import { fetchPlaces } from "@/lib/mapLabels/fetchPlaces";
+import { fetchPlacesFromTiles, tilesAvailable } from "@/lib/mapLabels/fetchFromTiles";
 import { parseBbox } from "@/lib/surveillance/regions";
 import { tileBbox, tileCacheKey, tilesForBbox } from "@/lib/mapLabels/tiles";
 import type { PlaceLabel } from "@/lib/mapLabels/places";
@@ -88,10 +89,34 @@ export async function GET(request: Request) {
             console.warn("[map-labels] cache read failed:", err);
         }
 
+        const box = tileBbox(tile);
+
+        // Local PMTiles archives when configured. No quota, no rate limit and no
+        // cold-fetch latency, so the breaker does not apply to this path.
+        if (tilesAvailable()) {
+            try {
+                const places = await fetchPlacesFromTiles(box);
+                if (places) {
+                    try {
+                        await redis.set(key, JSON.stringify(places), "EX", CACHE_TTL_SECONDS);
+                    } catch (err) {
+                        console.warn("[map-labels] cache write failed:", err);
+                    }
+                    return { places, cached: false, failed: false };
+                }
+            } catch (err) {
+                // Fall through to Overpass rather than losing labels entirely,
+                // e.g. a missing or truncated archive file.
+                console.error(
+                    "[map-labels] pmtiles read failed, falling back to Overpass:",
+                    err instanceof Error ? err.message : err,
+                );
+            }
+        }
+
         if (skipUpstream) return { places: [], cached: false, failed: true };
 
         try {
-            const box = tileBbox(tile);
             const places = await fetchPlaces({
                 south: box.south,
                 west: box.west,
