@@ -15,6 +15,12 @@ import { isSweepRunning, runSweep } from "@/lib/surveillance/sweep";
  * (cron's curl) would time out long before it finished. Progress is observable
  * through GET and through the `fetchedAt` on the read route.
  *
+ * NOTE: the app now sweeps on its own schedule (see
+ * `lib/surveillance/scheduler.ts`), so this route is an OPTIONAL manual
+ * override for forcing a refresh. It is NOT in `PUBLIC_API_PREFIXES`, so it
+ * also needs a session cookie to reach — call it from a logged-in browser or
+ * allowlist the path if you want to drive it from cron.
+ *
  * This exists because the data engine is optional — an instance can run with
  * `engine: false` and still have Redis, leaving a seeder with nowhere to
  * execute. Instances that DO run the engine should use the seeder package

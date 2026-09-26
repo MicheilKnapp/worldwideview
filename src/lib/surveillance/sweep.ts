@@ -26,6 +26,7 @@ import { enabledTiers } from "./tiers";
 const TTL_SECONDS = 48 * 60 * 60;
 /** Guards against a second trigger piling onto a sweep already in flight. */
 const LOCK_TTL_SECONDS = 60 * 60;
+const LOCK_KEY = `${KEY_PREFIX}:lock`;
 
 export interface SweepResult {
     fetchedAt: string;
@@ -39,23 +40,45 @@ export interface SweepResult {
 
 export async function isSweepRunning(): Promise<boolean> {
     try {
-        return (await redis.get(`${KEY_PREFIX}:lock`)) !== null;
+        return (await redis.get(LOCK_KEY)) !== null;
     } catch {
         return false;
     }
 }
 
-async function setLock(state: "held" | "clear"): Promise<void> {
+/**
+ * Takes the sweep lock, or returns false if another process holds it.
+ *
+ * Atomic (SET NX) rather than get-then-set: the app runs under `pm2 -i 4`, so
+ * four workers boot at once and a read-then-write race would let all four
+ * start the same global Overpass sweep.
+ */
+async function acquireLock(): Promise<boolean> {
     try {
-        if (state === "held") await redis.set(`${KEY_PREFIX}:lock`, "1", "EX", LOCK_TTL_SECONDS);
-        else await redis.set(`${KEY_PREFIX}:lock`, "", "EX", 1);
-    } catch {
-        // A missing lock only risks a duplicate sweep, never bad data.
+        return (await redis.set(LOCK_KEY, String(process.pid), "EX", LOCK_TTL_SECONDS, "NX")) === "OK";
+    } catch (err) {
+        console.warn("[surveillance-sweep] could not reach Redis for the lock:", err);
+        return false;
     }
 }
 
-export async function runSweep(): Promise<SweepResult> {
-    await setLock("held");
+async function releaseLock(): Promise<void> {
+    try {
+        await redis.del(LOCK_KEY);
+    } catch {
+        // The TTL clears it regardless; worst case is a delayed next sweep.
+    }
+}
+
+/**
+ * Runs a sweep, unless another process is already doing so.
+ * @returns the result, or null when the lock was held elsewhere.
+ */
+export async function runSweep(): Promise<SweepResult | null> {
+    if (!(await acquireLock())) {
+        console.log("[surveillance-sweep] another process holds the lock — skipping");
+        return null;
+    }
     try {
         const batches: DeviceRecord[][] = [];
         const succeeded: string[] = [];
@@ -141,6 +164,6 @@ export async function runSweep(): Promise<SweepResult> {
             degradedTiers: degraded,
         };
     } finally {
-        await setLock("clear");
+        await releaseLock();
     }
 }

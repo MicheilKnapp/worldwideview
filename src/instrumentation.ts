@@ -21,6 +21,13 @@ export async function register() {
       console.log("[startup] Using MARKETPLACE_API_KEY credential source (env var path).");
     }
     await import("./sentry.server.config");
+
+    // Refreshes the surveillance-infrastructure cache from OpenStreetMap.
+    // Self-scheduling because the data engine is optional; a Redis lock keeps
+    // the pm2 workers from sweeping in parallel. Disable with
+    // SURVEILLANCE_AUTO_SWEEP=0.
+    const { startSurveillanceScheduler } = await import("@/lib/surveillance/scheduler");
+    startSurveillanceScheduler();
   }
 
   if (process.env.NEXT_RUNTIME === "edge") {
