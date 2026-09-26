@@ -48,3 +48,24 @@ export function isSameOriginEntry(
         return false;
     }
 }
+
+/**
+ * Sentinel origin used to decide whether an entry is origin-relative.
+ *
+ * Only a genuinely relative path ("/plugins/x.mjs", "./x.mjs") resolves back to
+ * whatever base it is given. An absolute or protocol-relative entry resolves to
+ * its own host, so it will never match this.
+ */
+const RELATIVE_BASE = "https://self-hosted.invalid";
+
+/**
+ * True when a plugin's bundle is served by the instance itself.
+ *
+ * The server-side counterpart to isSameOriginEntry, for code that has no
+ * browser origin to compare against. An origin-relative entry is resolved by
+ * the browser against the app's own origin by definition, so relative means
+ * self-hosted, and self-hosted means the operator put the file there.
+ */
+export function isSelfHostedEntry(entry: string | undefined | null): boolean {
+    return isSameOriginEntry(entry, RELATIVE_BASE);
+}

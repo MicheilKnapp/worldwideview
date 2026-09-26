@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { handlePreflight, withCors } from "@/lib/marketplace/cors";
 import { validateManifest } from "@/core/plugins/validateManifest";
 import { validateMarketplaceAuth } from "@/lib/marketplace/auth";
+import { isSelfHostedEntry } from "@/lib/marketplace/trustedPlugins";
 import type { PluginManifest } from "@/core/plugins/PluginManifest";
 import { getVerifiedPluginIds } from "@/lib/marketplace/registryClient";
 
@@ -117,8 +118,21 @@ export async function GET(request: Request) {
             .map((m: any) => {
                 // Re-stamp trust against the live registry so revoked plugins
                 // are correctly gated by the unverified dialog on the client.
+                //
+                // Self-hosted bundles count as verified regardless of the
+                // registry. "Unverified" is a warning about third-party code
+                // reaching the visitor's session; a bundle served from this
+                // instance's own origin was put there by the operator and is
+                // already as trusted as the app serving it. A first-party layer
+                // would otherwise carry a risk badge and an approval dialog
+                // forever, since it will never appear in the public registry.
+                //
+                // This is the single place trust is decided, so it settles the
+                // batch dialog, the layer-list badge and the plugins tab at once.
                 if (m.trust !== "built-in") {
-                    m.trust = verifiedIds.has(m.id) ? "verified" : "unverified";
+                    m.trust = verifiedIds.has(m.id) || isSelfHostedEntry(m.entry)
+                        ? "verified"
+                        : "unverified";
                 }
                 return m;
             });

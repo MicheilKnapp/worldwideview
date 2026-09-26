@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isSameOriginEntry } from "./trustedPlugins";
+import { isSameOriginEntry, isSelfHostedEntry } from "./trustedPlugins";
 
 const ORIGIN = "https://wwv.example.com";
 
@@ -40,5 +40,28 @@ describe("isSameOriginEntry", () => {
         expect(isSameOriginEntry("/x.mjs", undefined)).toBe(false);
         expect(isSameOriginEntry("/x.mjs", "not a url")).toBe(false);
         expect(isSameOriginEntry("http://[bad", ORIGIN)).toBe(false);
+    });
+});
+
+describe("isSelfHostedEntry", () => {
+    it("treats origin-relative entries as self-hosted", () => {
+        // No browser origin available server-side, so "relative" is the signal:
+        // the browser resolves it against the app's own origin by definition.
+        expect(isSelfHostedEntry("/plugins/surveillance-infrastructure/frontend.mjs")).toBe(true);
+        expect(isSelfHostedEntry("/plugins/iss/frontend.mjs")).toBe(true);
+        expect(isSelfHostedEntry("./frontend.mjs")).toBe(true);
+    });
+
+    it("does not treat third-party or protocol-relative entries as self-hosted", () => {
+        expect(isSelfHostedEntry("https://unpkg.com/x/frontend.mjs")).toBe(false);
+        expect(isSelfHostedEntry("https://cdn.jsdelivr.net/npm/x.mjs")).toBe(false);
+        // Begins with a slash, resolves elsewhere — the case a prefix test misses.
+        expect(isSelfHostedEntry("//evil.example/x.mjs")).toBe(false);
+    });
+
+    it("is false for missing or unparseable entries", () => {
+        expect(isSelfHostedEntry(undefined)).toBe(false);
+        expect(isSelfHostedEntry("")).toBe(false);
+        expect(isSelfHostedEntry("http://[bad")).toBe(false);
     });
 });
