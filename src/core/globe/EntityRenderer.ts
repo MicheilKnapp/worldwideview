@@ -14,6 +14,7 @@ import {
  updateExistingItem, createNewItem, cleanupRemovedEntities, getDefaultDotIcon
 } from "./primitiveOps";
 import { rebuildStacks, calculateGridSizeDegrees } from "./StackManager";
+import { isRenderableEntity } from "@/core/plugins/entityGuards";
 
 // Re-export for existing consumers
 export {
@@ -130,6 +131,12 @@ billboards: BillboardCollection,
     labels: LabelCollection,
 currentIds: Set<string>
 ) {
+    // Last line of defence. PluginManager filters unrenderable entities at
+    // ingestion, but fromDegrees throws on a non-numeric coordinate and this
+    // runs inside a React effect, so a single escapee would unmount the globe
+    // and every layer on it. Skipping one entity is always the better failure.
+    if (!isRenderableEntity(entity)) return;
+
     currentIds.add(entity.id);
     Cartesian3.fromDegrees(entity.longitude, entity.latitude, entity.altitude || 0, Ellipsoid.WGS84, scratchPosition);
 

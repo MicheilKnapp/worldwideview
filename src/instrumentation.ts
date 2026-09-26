@@ -21,6 +21,19 @@ export async function register() {
       console.log("[startup] Using MARKETPLACE_API_KEY credential source (env var path).");
     }
     await import("./sentry.server.config");
+
+    // Refreshes the surveillance-infrastructure cache from OpenStreetMap.
+    // Self-scheduling because the data engine is optional; a Redis lock keeps
+    // the pm2 workers from sweeping in parallel. Disable with
+    // SURVEILLANCE_AUTO_SWEEP=0.
+    const { startSurveillanceScheduler } = await import("@/lib/surveillance/scheduler");
+    startSurveillanceScheduler();
+
+    // Removes expired guest accounts. "Continue as Guest" creates a real but
+    // temporary user, and nothing deleted those: cleanup:guests was a manual
+    // script scheduled nowhere. Disable with GUEST_CLEANUP=0.
+    const { startGuestCleanupScheduler } = await import("@/lib/guestCleanup");
+    startGuestCleanupScheduler();
   }
 
   if (process.env.NEXT_RUNTIME === "edge") {

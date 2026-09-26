@@ -25,6 +25,8 @@ import { GraphicsSettings } from "./GraphicsSettings";
 export function ImageryPicker() {
     const baseLayerId = useStore((s) => s.mapConfig.baseLayerId);
     const fallbackLayerId = useStore((s) => s.mapConfig.fallbackLayerId);
+    const zoomLayerId = useStore((s) => s.mapConfig.zoomLayerId);
+    const autoImageryByZoom = useStore((s) => s.mapConfig.autoImageryByZoom);
     const sceneMode = useStore((s) => s.mapConfig.sceneMode);
     const updateMapConfig = useStore((s) => s.updateMapConfig);
 
@@ -67,11 +69,19 @@ export function ImageryPicker() {
                         const isFallbackMode = fallbackLayerId !== null;
                         const isThisFallback = fallbackLayerId === layer.id;
                         const isFailedTarget = isFallbackMode && isSelected;
-                        const isActive = isFallbackMode ? isThisFallback : isSelected;
+                        // Mirror useImageryManager: fallback outranks the zoom
+                        // override, which outranks the stored choice. Without this the
+                        // panel highlights Google while Bing is on screen.
+                        const isZoomMode = !isFallbackMode && zoomLayerId !== null;
+                        const isThisZoom = zoomLayerId === layer.id;
+                        const isActive = isFallbackMode
+                            ? isThisFallback
+                            : (isZoomMode ? isThisZoom : isSelected);
 
                         let className = "imagery-item";
                         if (isFailedTarget) className += " imagery-item--failed";
                         else if (isThisFallback) className += " imagery-item--fallback";
+                        else if (isZoomMode && isThisZoom) className += " imagery-item--fallback";
                         else if (isActive) className += " imagery-item--active";
 
                         return (
@@ -79,10 +89,20 @@ export function ImageryPicker() {
                             key={layer.id}
                             className={className}
                             onClick={() => {
-                                    updateMapConfig({ baseLayerId: layer.id, fallbackLayerId: null });
+                                    updateMapConfig({ baseLayerId: layer.id, fallbackLayerId: null, zoomLayerId: null });
                                     trackEvent("imagery-layer-change", { layer: layer.id });
                                 }}
-                            title={isFailedTarget ? "Error: Missing API Key" : (isThisFallback ? "Active Fallback" : "")}
+                            title={
+                                isFailedTarget
+                                    ? "Error: Missing API Key"
+                                    : isThisFallback
+                                      ? "Active Fallback"
+                                      : isZoomMode && isThisZoom
+                                        ? "Active — auto-switched at this zoom level"
+                                        : isZoomMode && isSelected
+                                          ? "Your choice — resumes when you zoom out"
+                                          : ""
+                            }
                           >
                             <div className="imagery-item__thumbnail">
                               <Layers size={20} className="imagery-item__icon" />
@@ -92,6 +112,24 @@ export function ImageryPicker() {
                         );
                     })}
           </div>
+
+          <label className="imagery-picker__auto">
+            <input
+              type="checkbox"
+              checked={autoImageryByZoom}
+              onChange={(e) => {
+                                // Clear any active override immediately, so switching this
+                                // off restores the chosen layer without waiting for the
+                                // camera to move again.
+                                updateMapConfig({
+                                    autoImageryByZoom: e.target.checked,
+                                    zoomLayerId: null,
+                                });
+                                trackEvent("imagery-auto-zoom-toggle", { enabled: e.target.checked });
+                            }}
+            />
+            <span>Use labelled imagery when zoomed in</span>
+          </label>
         </div>
 
         <div className="imagery-picker__divider" />

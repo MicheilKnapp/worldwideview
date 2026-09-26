@@ -20,6 +20,7 @@ import { useBorders } from "./useBorders";
 
 import { handleEntitySelection, cleanupTrail } from "./SelectionHandler";
 import { useImageryManager } from "./useImageryManager";
+import { useZoomImagerySwitch } from "./useZoomImagerySwitch";
 import { getCachedRenderOptions } from "./renderOptionsCache";
 import type { AnimatableItem } from "./EntityRenderer";
 
@@ -121,6 +122,7 @@ enableLighting,
     }, [layers, entitiesByPlugin, filters, pluginSettings]);
 
     const { isGoogle3D } = useImageryManager(viewerRef.current, viewerReady);
+    useZoomImagerySwitch(viewerRef.current, viewerReady);
     useBorders(viewerRef.current, showLabels, isGoogle3D);
 
     useSelectionAnchor(viewerRef.current, viewerReady, selectedEntity, lockedEntityId, selectionEntityRef, animatablesMapRef);

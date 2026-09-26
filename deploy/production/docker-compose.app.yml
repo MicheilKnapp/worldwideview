@@ -28,6 +28,14 @@ services:
       # rediss:// endpoint in .env and remove the wwv-redis service and depends_on below.
       - "REDIS_URL=redis://:${REDIS_PASSWORD}@wwv-redis:6379"
       - "REDIS_PASSWORD=${REDIS_PASSWORD}"
+      # ── Legal pages (runtime; NOT build args, or they vanish after build).
+      # Values come from Coolify's Environment Variables UI. While OPERATOR,
+      # CONTACT_EMAIL or JURISDICTION is empty, /legal/* shows a notice saying
+      # the documents are unfinished.
+      - "LEGAL_OPERATOR=${LEGAL_OPERATOR:-Tonal Domination Studio, LLC}"
+      - "LEGAL_CONTACT_EMAIL=${LEGAL_CONTACT_EMAIL:-legal@tonaldominationstudio.com}"
+      - "LEGAL_JURISDICTION=${LEGAL_JURISDICTION:-Florida, United States}"
+      - "LEGAL_SITE_NAME=${LEGAL_SITE_NAME:-wwv.knappelectricquestioner.com}"
     restart: unless-stopped
     depends_on:
       db:

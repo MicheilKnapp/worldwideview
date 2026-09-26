@@ -14,6 +14,14 @@ export interface RedisMultiChain {
 export interface RedisClient {
     ping(): Promise<string>;
     set(key: string, value: string, exFlag: "EX", ttlSeconds: number): Promise<string | null>;
+    /**
+     * SET ... EX ttl NX — resolves to "OK" when the key was absent and this
+     * caller won it, or null when someone else holds it. Atomic, so it is
+     * safe as a cross-process lock (a read-then-write is not: every pm2
+     * worker can observe "free" before any of them writes).
+     */
+    set(key: string, value: string, exFlag: "EX", ttlSeconds: number, nxFlag: "NX"): Promise<string | null>;
+    del(key: string): Promise<number>;
     get(key: string): Promise<string | null>;
     zadd(key: string, score: number, member: string): Promise<number>;
     zrange(key: string, start: number | string, stop: number | string, withScores: "WITHSCORES"): Promise<string[]>;

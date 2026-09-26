@@ -1093,8 +1093,12 @@ body.sidebar-force-transition .sidebar {
   flex: 1;
   min-width: 0;
   display: flex;
-  align-items: center;
-  gap: var(--space-sm);
+  /* Stacked, not side by side. The badge is flex-shrink: 0 while the title
+     ellipsises, so in a row a long plugin name consumed the width and squeezed
+     the entity name down to "...". */
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
 }
 
 .entity-info-card__title {
@@ -1104,6 +1108,9 @@ body.sidebar-force-transition .sidebar {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* Full width of the stacked group, so truncation is a last resort rather
+     than the normal case. */
+  max-width: 100%;
 }
 
 .entity-info-card__badge {
@@ -1117,6 +1124,11 @@ body.sidebar-force-transition .sidebar {
   border-radius: 4px;
   white-space: nowrap;
   flex-shrink: 0;
+  /* On its own line it sizes to content; cap it so an unusually long plugin
+     name cannot widen the card. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .entity-info-card__props {
@@ -2160,4 +2172,21 @@ body.is-dragging-bottom-panel .bottom-panel {
 .legal-footer a:hover {
   color: var(--text-secondary);
   text-decoration: underline;
+}
+
+/* Auto imagery-by-zoom toggle in the imagery picker. */
+.imagery-picker__auto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: var(--space-sm, 0.75rem);
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.imagery-picker__auto input {
+  cursor: pointer;
+  accent-color: var(--accent, #5aa9e6);
 }

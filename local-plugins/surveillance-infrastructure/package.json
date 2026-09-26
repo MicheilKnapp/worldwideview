@@ -1,0 +1,43 @@
+{
+  "name": "@worldwideview/wwv-plugin-surveillance-infrastructure",
+  "version": "1.0.0",
+  "description": "Publicly-mapped surveillance devices from OpenStreetMap — licence plate readers, gunshot detectors, facial recognition cameras and (unverified) public-space cameras.",
+  "main": "dist/frontend.mjs",
+  "module": "dist/frontend.mjs",
+  "exports": {
+    ".": {
+      "import": "./dist/frontend.mjs",
+      "require": "./dist/frontend.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "peerDependencies": {
+    "@worldwideview/wwv-plugin-sdk": "*",
+    "lucide-react": "*",
+    "react": ">=19"
+  },
+  "worldwideview": {
+    "id": "surveillance-infrastructure",
+    "pluginId": "surveillance-infrastructure",
+    "name": "Surveillance Infrastructure",
+    "description": "Licence plate readers, gunshot detectors and facial recognition cameras mapped in OpenStreetMap.",
+    "type": "data-layer",
+    "format": "bundle",
+    "category": "infrastructure",
+    "icon": "Cctv",
+    "capabilities": [
+      "data:own",
+      "globe:overlay",
+      "network:fetch"
+    ],
+    "author": "WorldWideView",
+    "dev_entry": "src/index.ts",
+    "attribution": {
+      "text": "© OpenStreetMap contributors",
+      "license": "ODbL 1.0",
+      "licenseUrl": "https://opendatacommons.org/licenses/odbl/1-0/"
+    }
+  }
+}

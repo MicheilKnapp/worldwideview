@@ -1,0 +1,121 @@
+/* Legal document pages. Readable prose column, independent of the globe UI. */
+
+/* globals.css locks the viewport for the globe (`html, body { height: 100%;
+   overflow: hidden }`), so a tall document child is simply clipped and cannot
+   scroll. Rather than unlocking the body globally, this page is its own scroll
+   container. The bottom padding clears the fixed .legal-footer. */
+.legal-page {
+    height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    background: var(--bg-base, #09090b);
+    color: var(--text-primary, #e4e4e7);
+    padding: var(--space-xl, 2rem) var(--space-lg, 1.5rem) 64px;
+}
+
+.legal-doc {
+    max-width: 44rem;
+    margin: 0 auto;
+    font-size: 15px;
+    line-height: 1.7;
+}
+
+.legal-doc h1 {
+    font-size: 28px;
+    margin: 0 0 var(--space-xs, 0.5rem);
+}
+
+.legal-doc h2 {
+    font-size: 18px;
+    margin: var(--space-xl, 2rem) 0 var(--space-xs, 0.5rem);
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border-subtle, #27272a);
+}
+
+.legal-doc h3 {
+    font-size: 15px;
+    margin: var(--space-lg, 1.5rem) 0 var(--space-2xs, 0.25rem);
+}
+
+.legal-doc p,
+.legal-doc li {
+    color: var(--text-secondary, #a1a1aa);
+}
+
+.legal-doc ul {
+    padding-left: 1.25rem;
+}
+
+.legal-doc li {
+    margin-bottom: 0.4rem;
+}
+
+.legal-doc a {
+    color: var(--accent, #5aa9e6);
+}
+
+.legal-updated {
+    font-size: 13px;
+    color: var(--text-muted, #71717a);
+    margin: 0 0 var(--space-lg, 1.5rem);
+}
+
+.legal-back {
+    display: inline-block;
+    margin-bottom: var(--space-lg, 1.5rem);
+    font-size: 13px;
+    color: var(--text-muted, #71717a);
+    text-decoration: none;
+}
+
+.legal-back:hover {
+    color: var(--text-primary, #e4e4e7);
+}
+
+/* Shown only while the operator details are unset, so an unconfigured
+   instance cannot present an incomplete document as finished. */
+.legal-notice {
+    border: 1px solid #a16207;
+    background: rgba(161, 98, 7, 0.12);
+    border-radius: 6px;
+    padding: var(--space-sm, 0.75rem) var(--space-md, 1rem);
+    margin-bottom: var(--space-lg, 1.5rem);
+    font-size: 13px;
+    color: #fde68a;
+}
+
+.legal-notice code {
+    background: rgba(0, 0, 0, 0.35);
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
+.legal-doc table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: var(--space-sm, 0.75rem) 0;
+    font-size: 14px;
+}
+
+.legal-doc th,
+.legal-doc td {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border-subtle, #27272a);
+    vertical-align: top;
+}
+
+.legal-doc th {
+    color: var(--text-primary, #e4e4e7);
+    font-weight: 600;
+}
+
+@media (max-width: 640px) {
+    .legal-page {
+        padding: var(--space-lg, 1.5rem) var(--space-md, 1rem) 64px;
+    }
+    .legal-doc {
+        font-size: 14px;
+    }
+}

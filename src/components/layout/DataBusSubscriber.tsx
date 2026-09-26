@@ -14,6 +14,20 @@ import { pluginManager } from "@/core/plugins/PluginManager";
 import { wsClient } from "@/core/data/WsClient";
 import { resolveEngineUrl } from "@/core/data/resolveEngineUrl";
 import { fetchLocalEngineManifest } from "@/core/data/engineManifest";
+import { partitionRenderable } from "@/core/plugins/entityGuards";
+
+/** Last warning per plugin, so a fast stream cannot flood the console. */
+const lastUnrenderableWarn = new Map<string, number>();
+
+function warnUnrenderable(pluginId: string, dropped: number, total: number): void {
+    const now = Date.now();
+    if (now - (lastUnrenderableWarn.get(pluginId) ?? 0) < 60_000) return;
+    lastUnrenderableWarn.set(pluginId, now);
+    console.warn(
+        `[DataBusSubscriber] "${pluginId}" emitted ${dropped}/${total} entities with unusable ` +
+            `coordinates; dropped. Commonly a plugin mishandling the engine payload shape.`,
+    );
+}
 
 /**
  * @component DataBusSubscriber
@@ -47,11 +61,24 @@ export function DataBusSubscriber() {
         });
 
         const unsubData = dataBus.on("dataUpdated", ({ pluginId, entities }) => {
+            // The only path into the store, and several producers emit here
+            // (PluginManager polling, cache replay, WsClient). Validating at the
+            // consumer means a new producer cannot reintroduce the crash:
+            // Cesium throws on a non-numeric coordinate, and because rendering
+            // runs in a React effect that unmounts the globe and every layer.
+            const { valid, dropped } = partitionRenderable(entities);
+            if (dropped > 0) warnUnrenderable(pluginId, dropped, entities.length);
+
+            // Nothing renderable in a non-empty batch means the plugin is
+            // malfunctioning, not reporting "no entities". Keep what is on
+            // screen rather than blanking the layer on every bad push.
+            if (entities.length > 0 && valid.length === 0) return;
+
             // Defer the state updates by one tick to prevent React "Maximum update depth exceeded"
             // errors during massive synchronous plugin loads (e.g. at boot).
             setTimeout(() => {
-                setEntities(pluginId, entities);
-                setEntityCount(pluginId, entities.length);
+                setEntities(pluginId, valid);
+                setEntityCount(pluginId, valid.length);
             }, 0);
         });
 

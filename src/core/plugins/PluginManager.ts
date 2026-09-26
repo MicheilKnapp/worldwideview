@@ -15,6 +15,7 @@ import { trackEvent } from "@/lib/analytics";
 import { resolveEngineUrl } from "@/core/data/resolveEngineUrl";
 import { fetchLocalEngineManifest } from "@/core/data/engineManifest";
 import { pluginRegistry } from "@/core/plugins/PluginRegistry";
+import { partitionRenderable } from "@/core/plugins/entityGuards";
 import { withTrailHistory } from "@/core/plugins/withTrailHistory";
 
 // Third-party bundles that don't ship their own always-visible trail (unlike
@@ -465,13 +466,45 @@ class PluginManager {
      * @param pluginId - The ID of the plugin providing the update.
      * @param entities - The new array of GeoEntities.
      */
+    /** Last warning per plugin, so a 5s poll cannot flood the console. */
+    private lastInvalidWarn = new Map<string, number>();
+
+    private warnDroppedEntities(pluginId: string, dropped: number, total: number): void {
+        const now = Date.now();
+        const last = this.lastInvalidWarn.get(pluginId) ?? 0;
+        if (now - last < 60_000) return;
+        this.lastInvalidWarn.set(pluginId, now);
+        console.warn(
+            `[PluginManager] "${pluginId}" emitted ${dropped}/${total} entities with ` +
+                `unusable coordinates; dropped. This usually means the plugin's ` +
+                `mapWebsocketPayload mishandled the engine payload shape.`,
+        );
+    }
+
     private handleDataUpdate(pluginId: string, entities: GeoEntity[]): void {
         const managed = this.plugins.get(pluginId);
         if (!managed) return;
-        managed.entities = entities;
 
-        cacheLayer.set(pluginId, entities, this.configCacheMaxAge);
-        dataBus.emit("dataUpdated", { pluginId, entities });
+        // Third-party bundles can emit entities without usable coordinates.
+        // Cesium throws on those, and since rendering runs inside a React
+        // effect, one bad entity unmounts the entire globe -- every layer, not
+        // just the offending one. Drop them here, at the single point all three
+        // delivery paths (polling, websocket, onDataUpdate) funnel through.
+        const { valid, dropped } = partitionRenderable(entities);
+        if (dropped > 0) this.warnDroppedEntities(pluginId, dropped, entities.length);
+
+        // A non-empty batch in which NOTHING is renderable is a malfunctioning
+        // plugin, not a report of "no entities". Replacing good data with an
+        // empty set would blank the layer on every such push -- aviation gets
+        // valid data from its REST poll and garbage from its websocket, so
+        // honouring the garbage would make it flicker. A genuinely empty
+        // batch still clears the layer, as it should.
+        if (entities.length > 0 && valid.length === 0) return;
+
+        managed.entities = valid;
+
+        cacheLayer.set(pluginId, valid, this.configCacheMaxAge);
+        dataBus.emit("dataUpdated", { pluginId, entities: valid });
 
         // Clear loading indicator once first data arrives
         dataBus.emit("layerLoadingChanged", { pluginId, loading: false });

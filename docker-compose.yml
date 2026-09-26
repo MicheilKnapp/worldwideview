@@ -32,6 +32,14 @@ services:
       - "WWV_DEMO_ADMIN_SECRET=${WWV_DEMO_ADMIN_SECRET:-}"
       - "WWV_BRIDGE_TOKEN=${WWV_BRIDGE_TOKEN:-}"
       - "DATABASE_URL=postgresql://postgres:postgres@db:5432/worldwideview?schema=public"
+      # ── Legal pages (runtime; NOT build args, or they vanish after build).
+      # Values come from Coolify's Environment Variables UI. While OPERATOR,
+      # CONTACT_EMAIL or JURISDICTION is empty, /legal/* shows a notice saying
+      # the documents are unfinished.
+      - "LEGAL_OPERATOR=${LEGAL_OPERATOR:-Tonal Domination Studio, LLC}"
+      - "LEGAL_CONTACT_EMAIL=${LEGAL_CONTACT_EMAIL:-legal@tonaldominationstudio.com}"
+      - "LEGAL_JURISDICTION=${LEGAL_JURISDICTION:-Florida, United States}"
+      - "LEGAL_SITE_NAME=${LEGAL_SITE_NAME:-wwv.knappelectricquestioner.com}"
     depends_on:
       db:
         condition: service_healthy

@@ -12,7 +12,13 @@ import type { FilterValue } from "@/core/plugins/PluginTypes";
 import { hasLocalSource, resolveLocalSnapshot, getLocalSourceIds } from "./localSources";
 
 export function getEngineUrl(): string {
-    const port = process.env.NEXT_PUBLIC_WWV_LOCAL_ENGINE_PORT || '5001';
+    // 5000 matches docker-compose's binding and the two other call sites
+    // (core/data/engineManifest.ts, core/data/resolveEngineUrl.ts). This
+    // defaulted to 5001, where nothing listens, so /api/health reported
+    // engine:false and server-side local data sources missed a running
+    // engine whenever NEXT_PUBLIC_WWV_LOCAL_ENGINE_PORT was unset -- i.e.
+    // under `pnpm dev`, though not `pnpm dev:all`, which sets it.
+    const port = process.env.NEXT_PUBLIC_WWV_LOCAL_ENGINE_PORT || '5000';
     return `http://localhost:${port}`;
 }
 

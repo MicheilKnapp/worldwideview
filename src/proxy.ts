@@ -179,8 +179,11 @@ export default async function proxy(req: NextRequest) {
         }
     }
 
-    // Auth pages: always accessible
-    if (path.startsWith("/setup") || path.startsWith("/login") || path.startsWith("/signup") || path.startsWith("/locked")) {
+    // Auth pages: always accessible. /legal joins them because the privacy
+    // policy and terms have to be readable BEFORE signing up -- gating them
+    // behind a session would mean nobody could read what they are agreeing to.
+    // These routes render static prose and read no user data.
+    if (path.startsWith("/setup") || path.startsWith("/login") || path.startsWith("/signup") || path.startsWith("/locked") || path.startsWith("/legal")) {
         const res = NextResponse.next();
         if (tenantSubdomain) res.headers.set("x-tenant-subdomain", tenantSubdomain);
         return res;

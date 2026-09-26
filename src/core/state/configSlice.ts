@@ -59,6 +59,14 @@ export interface MapConfig {
     baseLayerId: string;
     /** Optional fallback layer if base layer fails to load. */
     fallbackLayerId: string | null;
+    /**
+     * Layer forced by the zoom-level switcher, or null when the user's own
+     * choice applies. Runtime only, never persisted: it is derived from where
+     * the camera happens to be, not a preference.
+     */
+    zoomLayerId: string | null;
+    /** Whether to swap in labelled imagery automatically at state level. */
+    autoImageryByZoom: boolean;
     /** The active scene mode (2D, 2.5D, or 3D). */
     sceneMode: 1 | 2 | 3;
     /** Whether OSM 3D Buildings are shown on non-Google imagery layers. */
@@ -115,6 +123,13 @@ export const createConfigSlice: StateCreator<AppStore, [], [], ConfigSlice> = (s
         enableLighting: false,
         baseLayerId: (typeof window !== "undefined" && window.localStorage && typeof window.localStorage.getItem === "function") ? (localStorage.getItem("wwv_map_layer") || "google-3d") : "google-3d",
         fallbackLayerId: null,
+        zoomLayerId: null,
+        autoImageryByZoom:
+            typeof window !== "undefined"
+            && window.localStorage
+            && typeof window.localStorage.getItem === "function"
+                ? localStorage.getItem("wwv_auto_imagery_zoom") !== "0"
+                : true,
         sceneMode: 3,
         showOsmBuildings: true,
         weatherOverlay: null,
@@ -125,6 +140,9 @@ export const createConfigSlice: StateCreator<AppStore, [], [], ConfigSlice> = (s
     updateMapConfig: (config) => set((state) => {
             if (config.baseLayerId && typeof window !== "undefined" && window.localStorage && typeof window.localStorage.setItem === "function") {
                 localStorage.setItem("wwv_map_layer", config.baseLayerId);
+            }
+            if (config.autoImageryByZoom !== undefined && typeof window !== "undefined" && window.localStorage && typeof window.localStorage.setItem === "function") {
+                localStorage.setItem("wwv_auto_imagery_zoom", config.autoImageryByZoom ? "1" : "0");
             }
             return { mapConfig: { ...state.mapConfig, ...config } };
         }),
