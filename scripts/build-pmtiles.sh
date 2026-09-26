@@ -36,12 +36,24 @@ log() { echo "[build-pmtiles] $*"; }
 # or swallows most of Canada and the Pacific. See pmtiles-us-region.geojson.
 US_REGION="$SCRIPT_DIR/pmtiles-us-region.geojson"
 
+# Zooms are overridable so a tier can be re-cut without editing this file:
+#   WORLD_MAXZOOM=12 ./build-pmtiles.sh estimate world
+#
+# What each zoom buys, measured against real tiles rather than assumed: the
+# roads layer carries no labellable named ways at all below z11, only motorways
+# at z11, and primary/secondary from z12. So a world tier at z10 gives place
+# names everywhere but street names nowhere outside the us and na tiers. z14 is
+# where residential streets arrive, which is why the us tier stops there.
+WORLD_MAXZOOM="${WORLD_MAXZOOM:-10}"
+NA_MAXZOOM="${NA_MAXZOOM:-13}"
+US_MAXZOOM="${US_MAXZOOM:-14}"
+
 tier_spec() {
     case "$1" in
         # maxzoom  then either bbox:... or region:...
-        world) echo "10" ;;
-        na)    echo "13 bbox:-141.0,14.5,-52.6,70.0" ;;
-        us)    echo "14 region:$US_REGION" ;;
+        world) echo "$WORLD_MAXZOOM" ;;
+        na)    echo "$NA_MAXZOOM bbox:-141.0,14.5,-52.6,70.0" ;;
+        us)    echo "$US_MAXZOOM region:$US_REGION" ;;
         *)     log "unknown tier: $1 (expected world, na or us)"; exit 1 ;;
     esac
 }

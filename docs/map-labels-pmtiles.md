@@ -42,12 +42,29 @@ Sizes below are measured with `--dry-run`, not estimated:
 That leaves headroom inside a 50 GB budget for a re-cut, which briefly needs
 space for both the old archive and the new `.partial` beside it.
 
-Two of those zooms are chosen to match what the code actually asks for.
 `fetchPlacesFromTiles` defaults to `maxZoom = 10`, so a world archive capped at
-z9 would serve every place request a coarser parent tile. Street labels only
-render below 4 km camera height, where z14 already carries residential roads —
-z15 measures 19 GB for the US alone, doubling the file for geometry that
+z9 would serve every place request a coarser parent tile.
+
+What each zoom buys for **streets** was measured against real tiles rather than
+assumed, by counting named ways whose class appears in `LABELLED_HIGHWAYS`
+(downtown San Francisco, one tile):
+
+| z10 | z11 | z12 | z13 | z14 |
+|---|---|---|---|---|
+| 0 | 12, all motorway | 121, primary + secondary | 147, adds tertiary | 152, adds residential |
+
+Two consequences. The `world` tier at z10 gives place names everywhere but
+**street names nowhere** outside the `us` and `na` tiers; global street labels
+mean `world` at z12, which measures 18 GB against 3.8 GB at z10. And the `us`
+tier stops at z14 because that is where residential streets arrive — z15
+measures 19 GB for the US alone, doubling the file for geometry that
 `simplifyPolyline` then discards.
+
+Zooms are overridable per tier without editing the script:
+
+```bash
+WORLD_MAXZOOM=12 scripts/build-pmtiles.sh estimate world
+```
 
 The US tier is cut from a **GeoJSON region, not a bbox**: a single rectangle
 around the United States either omits Alaska, Hawaii and Puerto Rico, or
