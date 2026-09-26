@@ -23,7 +23,7 @@ import type { ComponentType } from "react";
 
 import pkg from "../package.json";
 import { fetchSummary, summaryToEntities, PLUGIN_ID } from "./api";
-import { iconFor, TIER_ORDER, TIERS, tierMeta, type TierId } from "./tiers";
+import { iconFor, iconScaleFor, TIER_ORDER, TIERS, tierMeta, type TierId } from "./tiers";
 import { createViewportComponent, type ViewportHost, type ViewportStatus } from "./viewport";
 
 interface PluginSettings {
@@ -139,7 +139,7 @@ export default class SurveillanceInfrastructurePlugin implements WorldPlugin {
             // it would let the host default (cyan) multiply the texture, so
             // nothing on the map would match the legend swatches.
             color: tierMeta(tier).color,
-            iconScale: directional ? 0.55 : 0.4,
+            iconScale: iconScaleFor(directional),
             rotation: directional ? heading : 0,
         };
     }

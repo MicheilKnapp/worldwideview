@@ -89,7 +89,7 @@ function dataUri(svg: string): string {
 function directionalIcon(): string {
     return dataUri(`
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
-          <path d="M24 24 L10 2 A26 26 0 0 1 38 2 Z" fill="#ffffff" fill-opacity="0.35"/>
+          <path d="M24 24 L10 2 A26 26 0 0 1 38 2 Z" fill="#ffffff" fill-opacity="0.5"/>
           <circle cx="24" cy="24" r="6" fill="#ffffff" stroke="#0b0b0b" stroke-width="2"/>
         </svg>
     `);
@@ -99,7 +99,7 @@ function directionalIcon(): string {
 function omniIcon(): string {
     return dataUri(`
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
-          <circle cx="24" cy="24" r="9" fill="#ffffff" fill-opacity="0.30"/>
+          <circle cx="24" cy="24" r="9" fill="#ffffff" fill-opacity="0.4"/>
           <circle cx="24" cy="24" r="6" fill="#ffffff" stroke="#0b0b0b" stroke-width="2"/>
         </svg>
     `);
@@ -116,4 +116,44 @@ export function iconFor(directional: boolean): string {
         ICON_CACHE.set(key, icon);
     }
     return icon;
+}
+
+/**
+ * Billboard scale for device markers.
+ *
+ * The host sizes billboards at getBaseSize() pixels -- 48 on desktop, 32 on a
+ * viewport of 768px or less -- then multiplies by this scale. Left alone, a
+ * phone renders these markers at two thirds the desktop size, and since the
+ * directional cone is a thin wedge inside the icon, the facing indicator
+ * collapses into a few pixels and becomes unreadable.
+ *
+ * The coarse-pointer multiplier is 48/32, which cancels the smaller base so a
+ * marker occupies the same physical size on a phone as on a desktop. Touch
+ * targets want to be larger, not smaller, than mouse targets.
+ */
+const DESKTOP_BASE_PX = 48;
+const MOBILE_BASE_PX = 32;
+/** The width at which the host switches base size. Must match getBaseSize(). */
+const MOBILE_BREAKPOINT_PX = 768;
+
+/** Directional markers carry the cone, so they need the room. */
+const DIRECTIONAL_SCALE = 0.7;
+const OMNI_SCALE = 0.5;
+
+/**
+ * Whether the host has dropped the billboard base to MOBILE_BASE_PX.
+ *
+ * Mirrors getBaseSize() exactly -- a viewport width test, NOT a touch test.
+ * Keying off "(pointer: coarse)" instead looks reasonable but is wrong: a
+ * touch tablet at 1024px still gets the full 48px base, so the compensating
+ * multiplier would stack on top of it and render markers half again too large.
+ */
+function usesReducedBase(): boolean {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth <= MOBILE_BREAKPOINT_PX;
+}
+
+export function iconScaleFor(directional: boolean): number {
+    const base = directional ? DIRECTIONAL_SCALE : OMNI_SCALE;
+    return usesReducedBase() ? base * (DESKTOP_BASE_PX / MOBILE_BASE_PX) : base;
 }
