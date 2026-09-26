@@ -84,14 +84,27 @@ export function useImageryManager(viewerInstance: CesiumViewer | null, viewerRea
             const outgoingLayer = currentImageryLayerRef.current;
 
             if (isGoogle3D) {
-                // Switching TO the 3D tileset. Reveal it and let it load while the
-                // existing imagery keeps covering the surface; only once it has
-                // tiles is it safe to hide the globe underneath.
-                if (!tileset) return;
-                tileset.show = true;
-                await waitForTiles(tileset);
-                if (cancelled || viewer.isDestroyed()) return;
+                // Switching TO the 3D tileset. When there IS an outgoing surface,
+                // reveal the tileset and let it load while that surface keeps
+                // covering the globe, so the swap has no blank frame.
+                if (tileset) {
+                    tileset.show = true;
+                    // Only worth waiting when something is currently covering the
+                    // globe. On a cold load there is nothing to protect, and
+                    // waiting here would leave the globe showing through.
+                    if (outgoingLayer) {
+                        await waitForTiles(tileset);
+                        if (cancelled || viewer.isDestroyed()) return;
+                    }
+                }
 
+                // Hide the globe whether or not the tileset exists yet. On first
+                // load it is still being created by useViewerInitialization, and
+                // leaving the globe visible in the meantime means it z-fights the
+                // tileset the moment it arrives — which rendered as pale blotches
+                // across the imagery. If the tileset never loads, the failure path
+                // sets fallbackLayerId, which re-runs this effect and shows the
+                // globe again with real imagery.
                 viewer.scene.globe.show = false;
                 if (outgoingLayer) {
                     viewer.imageryLayers.remove(outgoingLayer);
