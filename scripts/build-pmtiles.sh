@@ -42,9 +42,10 @@ US_REGION="$SCRIPT_DIR/pmtiles-us-region.geojson"
 # What each zoom buys, measured against real tiles rather than assumed: the
 # roads layer carries no labellable named ways at all below z11, only motorways
 # at z11, and primary/secondary from z12. So a world tier at z10 gives place
-# names everywhere but street names nowhere outside the us and na tiers. z14 is
-# where residential streets arrive, which is why the us tier stops there.
-WORLD_MAXZOOM="${WORLD_MAXZOOM:-10}"
+# names everywhere but street names nowhere outside the us and na tiers, which
+# is why world defaults to z12 despite costing 18 GB against 3.8 GB at z10. z14
+# is where residential streets arrive, which is why the us tier stops there.
+WORLD_MAXZOOM="${WORLD_MAXZOOM:-12}"
 NA_MAXZOOM="${NA_MAXZOOM:-13}"
 US_MAXZOOM="${US_MAXZOOM:-14}"
 
