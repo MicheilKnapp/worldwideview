@@ -1,7 +1,14 @@
 /* Legal document pages. Readable prose column, independent of the globe UI. */
 
+/* globals.css locks the viewport for the globe (`html, body { height: 100%;
+   overflow: hidden }`), so a tall document child is simply clipped and cannot
+   scroll. Rather than unlocking the body globally, this page is its own scroll
+   container. The bottom padding clears the fixed .legal-footer. */
 .legal-page {
-    min-height: 100vh;
+    height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     background: var(--bg-base, #09090b);
     color: var(--text-primary, #e4e4e7);
     padding: var(--space-xl, 2rem) var(--space-lg, 1.5rem) 64px;
