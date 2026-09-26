@@ -197,6 +197,17 @@ concern:
 Asking each archive at the zoom it can serve avoids both, and costs at most one
 index lookup per archive per tile.
 
+**A served tile is decoded against its own coordinates.** When a coarser archive
+answers, the bytes belong to an ancestor tile, and a vector tile's geometry is
+relative to the tile it came from — so z, x and y must travel together.
+`getVectorTile` returns the coordinate it actually served for exactly this
+reason. Pairing the served zoom with the requested x and y is silent and total:
+Paris asked for z15, the world archive served z12, and decoding z12 bytes with
+z15 coordinates placed every feature at longitude 2737, latitude -90, where it
+was discarded with no error logged anywhere. Labels then appeared only at the
+zoom where request and archive happened to coincide, which looked like sporadic
+slowness rather than a bug.
+
 ## Schema notes
 
 Protomaps describes features with `kind` / `kind_detail` rather than raw OSM

@@ -98,7 +98,7 @@ describe("getVectorTile archive selection", () => {
 
         const result = await getVectorTile(coord);
         expect(result?.archive).toBe("/d/us.pmtiles");
-        expect(result?.z).toBe(14);
+        expect(result?.coord.z).toBe(14);
     });
 
     it("falls through to a coarser archive when a covering archive has no tile", async () => {
@@ -131,7 +131,7 @@ describe("getVectorTile archive selection", () => {
 
         const result = await getVectorTile(coord);
         expect(result?.archive).toBe("/d/world.pmtiles");
-        expect(result?.z).toBe(9);
+        expect(result?.coord.z).toBe(9);
     });
 
     it("stops without walking to z0 when every covering archive agrees it is empty", async () => {
@@ -187,7 +187,7 @@ describe("getVectorTile archive selection", () => {
 
         const result = await getVectorTile(coord);
         expect(result?.archive).toBe("/d/world.pmtiles");
-        expect(result?.z).toBe(9);
+        expect(result?.coord.z).toBe(9);
         // The US archive must be asked at ITS max zoom, not the requested z15.
         expect(getZxy).toHaveBeenCalledWith(
             "/d/us.pmtiles",

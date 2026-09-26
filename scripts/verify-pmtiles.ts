@@ -46,7 +46,14 @@ async function main() {
         console.error(`no tile at ${coord.z}/${coord.x}/${coord.y} (probe: ${probe ? "ok" : "none"})`);
         process.exit(1);
     }
-    console.log(`tile ${tile.z}/${coord.x}/${coord.y} from ${tile.archive}, ${tile.data.byteLength} bytes`);
+    // Print the tile that ANSWERED, not the one requested. They differ whenever
+    // a coarser archive serves the request, and conflating the two is exactly
+    // how every feature ended up thousands of degrees off the map.
+    const served = tile.coord;
+    console.log(
+        `requested ${coord.z}/${coord.x}/${coord.y}, served ${served.z}/${served.x}/${served.y}` +
+            ` from ${tile.archive}, ${tile.data.byteLength} bytes`,
+    );
 
     const raw = new VectorTile(new PbfReader(new Uint8Array(tile.data)));
     console.log("\nlayers present:");

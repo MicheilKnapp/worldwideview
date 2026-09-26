@@ -89,9 +89,11 @@ export async function fetchPlacesFromTiles(
             const tile = await getVectorTile(coord);
             if (!tile) return [];
             try {
-                // Decode against the zoom that ANSWERED, which may be coarser
-                // than requested when only a low-detail archive covers the area.
-                return decodePlaces(tile.data, { ...coord, z: tile.z });
+                // Decode against the tile that ANSWERED, not the one asked for.
+                // A coarser archive returns an ancestor tile, whose x and y
+                // differ from the request — using the requested x/y with the
+                // served zoom sends every feature off the map.
+                return decodePlaces(tile.data, tile.coord);
             } catch (err) {
                 console.error(
                     "[pmtiles] place decode failed:",
@@ -130,7 +132,8 @@ export async function fetchStreetsFromTiles(
             const tile = await getVectorTile(coord);
             if (!tile) return [];
             try {
-                return decodeStreets(tile.data, { ...coord, z: tile.z });
+                // The served tile, not the requested one — see fetchPlaces.
+                return decodeStreets(tile.data, tile.coord);
             } catch (err) {
                 console.error(
                     "[pmtiles] street decode failed:",
