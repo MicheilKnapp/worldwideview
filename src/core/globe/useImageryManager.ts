@@ -17,12 +17,15 @@ export function useImageryManager(viewerInstance: CesiumViewer | null, viewerRea
     const viewer = viewerInstance;
     const baseLayerId = useStore((s) => s.mapConfig.baseLayerId);
     const fallbackLayerId = useStore((s) => s.mapConfig.fallbackLayerId);
+    const zoomLayerId = useStore((s) => s.mapConfig.zoomLayerId);
     const sceneMode = useStore((s) => s.mapConfig.sceneMode);
     const showOsmBuildings = useStore((s) => s.mapConfig.showOsmBuildings);
     const weatherOverlay = useStore((s) => s.mapConfig.weatherOverlay);
 
-    // Resolve runtime truth:
-    const activeLayerId = fallbackLayerId || baseLayerId;
+    // Resolve runtime truth. Precedence matters: fallbackLayerId means the
+    // chosen layer failed to load, so it outranks a zoom preference, which in
+    // turn outranks the stored choice while the camera is close in.
+    const activeLayerId = fallbackLayerId || zoomLayerId || baseLayerId;
 
     const currentImageryLayerRef = useRef<ImageryLayer | null>(null);
     const osmBuildingsRef = useRef<Cesium3DTileset | null>(null);
@@ -114,7 +117,7 @@ export function useImageryManager(viewerInstance: CesiumViewer | null, viewerRea
         }
 
         updateImagery();
-    }, [viewer, viewerReady, baseLayerId, fallbackLayerId]);
+    }, [viewer, viewerReady, baseLayerId, fallbackLayerId, zoomLayerId]);
 
     // 3. Enable Cesium World Terrain for non-Google 3D mode.
     //    depthTestAgainstTerrain is already true (useViewerInitialization) and OSM 3D

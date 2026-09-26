@@ -2161,3 +2161,20 @@ body.is-dragging-bottom-panel .bottom-panel {
   color: var(--text-secondary);
   text-decoration: underline;
 }
+
+/* Auto imagery-by-zoom toggle in the imagery picker. */
+.imagery-picker__auto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: var(--space-sm, 0.75rem);
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.imagery-picker__auto input {
+  cursor: pointer;
+  accent-color: var(--accent, #5aa9e6);
+}
