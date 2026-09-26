@@ -1,6 +1,7 @@
 import { overpassMirrors, requestMirror } from "@/lib/surveillance/overpass";
 
 import { LABELLED_HIGHWAYS, type HighwayClass, type StreetWay } from "./streets";
+import { simplifyPolyline } from "./simplify";
 import type { Bbox } from "./tiles";
 
 /**
@@ -45,10 +46,15 @@ function toStreet(el: OverpassWay): StreetWay | null {
     const geometry = el.geometry;
     if (!Array.isArray(geometry) || geometry.length < 2) return null;
 
-    const coords = geometry
+    const raw = geometry
         .filter((g) => Number.isFinite(g?.lat) && Number.isFinite(g?.lon))
         .map((g): [number, number] => [g.lon, g.lat]);
-    if (coords.length < 2) return null;
+    if (raw.length < 2) return null;
+
+    // Simplified before caching, not after: OSM's full vertex detail is far more
+    // than a label needs, and carrying it inflates the payload, the parse cost
+    // and the cache entry for no visible gain.
+    const coords = simplifyPolyline(raw);
 
     return { id: `w${el.id}`, name, kind, coords };
 }

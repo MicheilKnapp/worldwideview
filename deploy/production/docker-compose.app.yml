@@ -36,6 +36,10 @@ services:
       - "LEGAL_CONTACT_EMAIL=${LEGAL_CONTACT_EMAIL:-legal@tonaldominationstudio.com}"
       - "LEGAL_JURISDICTION=${LEGAL_JURISDICTION:-Florida, United States}"
       - "LEGAL_SITE_NAME=${LEGAL_SITE_NAME:-wwv.knappelectricquestioner.com}"
+      # Local PMTiles archives for map labels, most detailed first. Live on the
+      # wwv-data volume; unset falls back to Overpass. See
+      # docs/map-labels-pmtiles.md
+      - "PMTILES_ARCHIVES=${PMTILES_ARCHIVES:-}"
     restart: unless-stopped
     depends_on:
       db:

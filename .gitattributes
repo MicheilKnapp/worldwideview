@@ -1,0 +1,4 @@
+# Shell scripts run on Linux (the VPS, the Docker image) but are edited on
+# Windows. A CRLF in the shebang line makes the kernel look for an interpreter
+# named "/bin/sh\r", which fails with a bewildering "not found". Pin LF.
+*.sh text eol=lf
