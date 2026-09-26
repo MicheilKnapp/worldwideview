@@ -325,8 +325,18 @@ export function Header() {
               </div>
               <div className="header__subtitle">Geospatial Intelligence</div>
             </a>
-            <div style={{ marginLeft: "var(--space-xl)" }}>
+            {/* Locate sits beside search on desktop as it does on mobile, so the
+                control is in the same place whichever header is rendered. */}
+            <div
+              style={{
+                marginLeft: "var(--space-xl)",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
               <SearchBar />
+              <LocateMeButton />
             </div>
           </div>
           <div className="header__controls">
