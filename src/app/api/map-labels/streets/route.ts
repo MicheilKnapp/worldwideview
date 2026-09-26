@@ -42,56 +42,69 @@ export async function GET(request: Request) {
     }
 
     const tiles = streetTilesForBbox(bbox);
-    const ways: StreetWay[] = [];
-    const seen = new Set<string>();
-    let degraded = false;
-    let skipUpstream = await breakerOpen();
+    const skipUpstream = await breakerOpen();
 
-    for (const tile of tiles) {
+    /** Resolves one tile from cache, or upstream when allowed. */
+    async function loadTile(tile: (typeof tiles)[number]): Promise<{
+        ways: StreetWay[];
+        failed: boolean;
+    }> {
         const key = streetTileCacheKey(tile);
-        let tileWays: StreetWay[] | null = null;
 
         try {
             const cached = await redis.get(key);
-            if (cached) tileWays = JSON.parse(cached) as StreetWay[];
+            if (cached) return { ways: JSON.parse(cached) as StreetWay[], failed: false };
         } catch (err) {
             console.warn("[map-labels/streets] cache read failed:", err);
         }
 
-        if (!tileWays && skipUpstream) {
-            degraded = true;
-            continue;
-        }
+        if (skipUpstream) return { ways: [], failed: true };
 
-        if (!tileWays) {
+        try {
+            const ways = await fetchStreets(tileBbox(tile));
             try {
-                tileWays = await fetchStreets(tileBbox(tile));
-                try {
-                    await redis.set(key, JSON.stringify(tileWays), "EX", CACHE_TTL_SECONDS);
-                } catch (err) {
-                    console.warn("[map-labels/streets] cache write failed:", err);
-                }
+                await redis.set(key, JSON.stringify(ways), "EX", CACHE_TTL_SECONDS);
             } catch (err) {
-                console.error(
-                    "[map-labels/streets] tile fetch failed:",
-                    key,
-                    err instanceof Error ? err.message : err,
-                );
-                degraded = true;
-                skipUpstream = true;
-                try {
-                    await redis.set(BREAKER_KEY, String(Date.now()), "EX", BREAKER_SECONDS);
-                } catch {
-                    // Without Redis the breaker cannot latch; the limiter still applies.
-                }
-                continue;
+                console.warn("[map-labels/streets] cache write failed:", err);
             }
+            return { ways, failed: false };
+        } catch (err) {
+            console.error(
+                "[map-labels/streets] tile fetch failed:",
+                key,
+                err instanceof Error ? err.message : err,
+            );
+            return { ways: [], failed: true };
         }
+    }
 
-        for (const way of tileWays) {
+    // In parallel. Sequentially, a four-tile view waited for each Overpass
+    // round trip in turn, so a cold view took four times longer than it needed
+    // to — the slow first load.
+    const results = await Promise.all(tiles.map(loadTile));
+
+    const ways: StreetWay[] = [];
+    const seen = new Set<string>();
+    let degraded = false;
+
+    for (const result of results) {
+        if (result.failed) degraded = true;
+        for (const way of result.ways) {
             if (seen.has(way.id)) continue;
             seen.add(way.id);
             ways.push(way);
+        }
+    }
+
+    // Latch the breaker once, after the fact, rather than mid-flight: the
+    // parallel calls have already been made, and a single shared failure should
+    // not be recorded four times.
+    if (degraded && !skipUpstream) {
+        try {
+            await redis.set(BREAKER_KEY, String(Date.now()), "EX", BREAKER_SECONDS);
+            console.warn("[map-labels/streets] upstream failing — pausing Overpass calls");
+        } catch {
+            // Without Redis the breaker cannot latch; the limiter still applies.
         }
     }
 

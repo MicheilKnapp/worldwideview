@@ -69,70 +69,72 @@ export async function GET(request: Request) {
     // itself meant every pan and zoom minted a new key and a new upstream
     // query — hundreds of Overpass requests from a single browsing session.
     const tiles = tilesForBbox(bbox);
-    const places: PlaceLabel[] = [];
-    const seen = new Set<string>();
-    let degraded = false;
-    let served = 0;
-    // Checked once per request, not per tile: within one view the answer
-    // cannot meaningfully change, and re-reading it four times is waste.
-    let skipUpstream = await breakerOpen();
+    const skipUpstream = await breakerOpen();
 
-    for (const tile of tiles) {
+    async function loadTile(tile: (typeof tiles)[number]): Promise<{
+        places: PlaceLabel[];
+        cached: boolean;
+        failed: boolean;
+    }> {
         const key = tileCacheKey(tile);
-        let tilePlaces: PlaceLabel[] | null = null;
 
         try {
             const cached = await redis.get(key);
             if (cached) {
-                tilePlaces = JSON.parse(cached) as PlaceLabel[];
-                served++;
+                return { places: JSON.parse(cached) as PlaceLabel[], cached: true, failed: false };
             }
         } catch (err) {
             // A cache miss must never be fatal; fall through to Overpass.
             console.warn("[map-labels] cache read failed:", err);
         }
 
-        if (!tilePlaces && skipUpstream) {
-            // Breaker is open: serve what is cached, leave the rest blank.
-            degraded = true;
-            continue;
-        }
+        if (skipUpstream) return { places: [], cached: false, failed: true };
 
-        if (!tilePlaces) {
+        try {
+            const box = tileBbox(tile);
+            const places = await fetchPlaces({
+                south: box.south,
+                west: box.west,
+                north: box.north,
+                east: box.east,
+            });
             try {
-                const box = tileBbox(tile);
-                tilePlaces = await fetchPlaces({
-                    south: box.south,
-                    west: box.west,
-                    north: box.north,
-                    east: box.east,
-                });
-                try {
-                    await redis.set(key, JSON.stringify(tilePlaces), "EX", CACHE_TTL_SECONDS);
-                } catch (err) {
-                    console.warn("[map-labels] cache write failed:", err);
-                }
+                await redis.set(key, JSON.stringify(places), "EX", CACHE_TTL_SECONDS);
             } catch (err) {
-                // Labels are decoration. A tile that cannot be fetched is
-                // skipped rather than failing the whole view, and the client
-                // is told so it does not treat an empty area as authoritative.
-                console.error(
-                    "[map-labels] tile fetch failed:",
-                    key,
-                    err instanceof Error ? err.message : err,
-                );
-                degraded = true;
-                await openBreaker();
-                skipUpstream = true;
-                continue;
+                console.warn("[map-labels] cache write failed:", err);
             }
+            return { places, cached: false, failed: false };
+        } catch (err) {
+            console.error(
+                "[map-labels] tile fetch failed:",
+                key,
+                err instanceof Error ? err.message : err,
+            );
+            return { places: [], cached: false, failed: true };
         }
+    }
 
-        for (const place of tilePlaces) {
+    // In parallel: sequentially a multi-tile view waited for each Overpass round
+    // trip in turn, multiplying the cold-load time by the tile count.
+    const results = await Promise.all(tiles.map(loadTile));
+
+    const places: PlaceLabel[] = [];
+    const seen = new Set<string>();
+    let degraded = false;
+    let served = 0;
+
+    for (const result of results) {
+        if (result.failed) degraded = true;
+        if (result.cached) served++;
+        for (const place of result.places) {
             if (seen.has(place.id)) continue;
             seen.add(place.id);
             places.push(place);
         }
+    }
+
+    if (degraded && !skipUpstream) {
+        await openBreaker();
     }
 
     return NextResponse.json({
