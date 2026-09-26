@@ -36,11 +36,19 @@ Sizes below are measured with `--dry-run`, not estimated:
 |---|---|---|---|
 | `us.pmtiles` | United States, incl. Alaska, Hawaii, Puerto Rico | 14 | 9.7 GB |
 | `na.pmtiles` | Canada and Mexico | 13 | 8.1 GB |
-| `world.pmtiles` | Planet | 12 | 18 GB |
-| | | **total** | **35.8 GB** |
+| `world.pmtiles` | Planet | 10 | 3.8 GB |
+| | | **total** | **21.6 GB** |
 
-That fits a 50 GB budget with room for a re-cut, which briefly needs space for
-both the old archive and the new `.partial` beside it.
+**Check real free space, not a budget.** These archives normally land on the
+same filesystem as everything else — Docker volumes live under `/var/lib/docker`
+— so `df -h /` is the number that matters, not the size of the volume. Filling
+that filesystem does not merely fail the build: Postgres and most other services
+fail hard when they cannot write. The script measures each tier with `--dry-run`
+and refuses to build one that would leave less than `KEEP_FREE_GB` (default 8)
+behind.
+
+Re-cutting a tier briefly needs space for both the old archive and the new
+`.partial`; delete the old one first if space is tight.
 
 `fetchPlacesFromTiles` defaults to `maxZoom = 10`, so a world archive capped at
 z9 would serve every place request a coarser parent tile.
@@ -53,9 +61,10 @@ assumed, by counting named ways whose class appears in `LABELLED_HIGHWAYS`
 |---|---|---|---|---|
 | 0 | 12, all motorway | 121, primary + secondary | 147, adds tertiary | 152, adds residential |
 
-Two consequences. A `world` tier at z10 would give place names everywhere but
-**street names nowhere** outside the `us` and `na` tiers, so it defaults to z12
-— 18 GB against 3.8 GB, bought deliberately for global street labels. And the `us`
+Two consequences. The `world` tier at its z10 default gives place names
+everywhere but **street names nowhere** outside the `us` and `na` tiers. Global
+street labels mean `world` at z12, which costs 18 GB against 3.8 GB — worth it
+only where the disk allows. And the `us`
 tier stops at z14 because that is where residential streets arrive — z15
 measures 19 GB for the US alone, doubling the file for geometry that
 `simplifyPolyline` then discards.
