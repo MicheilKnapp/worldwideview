@@ -74,11 +74,20 @@ export function highwayRank(kind: HighwayClass): number {
 }
 
 /**
- * Street labels are only worth drawing close in. Above this camera height in
- * metres the roads are too dense and too small to read, and fetching their
- * geometry would be a lot of upstream work for nothing.
+ * Above this camera height in metres, street labels are not drawn at all.
+ *
+ * This was 4 km while Overpass was the source, where the limit was really about
+ * not hammering a volunteer service: every wider view meant more geometry
+ * fetched over the network. Reading local archives removes that cost, and 4 km
+ * turned out to be far closer in than it feels natural to zoom — a city view
+ * had no street names at all.
+ *
+ * 15 km is bounded by coverage rather than taste: a view this high spans about
+ * a quarter of a degree, which the 0.16 degree street tiles still cover inside
+ * MAX_STREET_TILES_PER_VIEW. Going higher would truncate the tile list and
+ * label only part of the view.
  */
-export const MAX_STREET_LABEL_HEIGHT_M = 4_000;
+export const MAX_STREET_LABEL_HEIGHT_M = 15_000;
 
 /**
  * Least important road class worth labelling at a camera height.
@@ -87,6 +96,11 @@ export const MAX_STREET_LABEL_HEIGHT_M = 4_000;
  * the arterials, which is what makes a city view legible rather than striped.
  */
 export function minimumHighwayRankForHeight(cameraHeightM: number): number {
+    // The top two steps exist because the height cap was raised: at 10 km,
+    // labelling every primary road in a metropolitan area is unreadable stripes,
+    // whereas motorway and trunk names are exactly what orients a viewer.
+    if (cameraHeightM > 9_000) return CLASS_RANK.motorway;
+    if (cameraHeightM > 5_000) return CLASS_RANK.trunk;
     if (cameraHeightM > 3_000) return CLASS_RANK.primary;
     if (cameraHeightM > 1_800) return CLASS_RANK.secondary;
     if (cameraHeightM > 900) return CLASS_RANK.tertiary;
@@ -118,6 +132,10 @@ export function polylineLengthDeg(coords: [number, number][]): number {
 
 /** Label spacing along a road, in degrees, for a camera height. */
 export function labelSpacingDegrees(cameraHeightM: number): number {
+    // Spacing tracks the height cap: at 10 km a 0.012 degree gap would stack
+    // repeats of the same motorway name almost on top of each other.
+    if (cameraHeightM > 9_000) return 0.05;
+    if (cameraHeightM > 5_000) return 0.025;
     if (cameraHeightM > 3_000) return 0.012;
     if (cameraHeightM > 1_800) return 0.006;
     if (cameraHeightM > 900) return 0.003;
