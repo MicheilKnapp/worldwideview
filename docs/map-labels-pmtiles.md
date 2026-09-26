@@ -144,6 +144,13 @@ PMTILES_ARCHIVES=/app/data/pmtiles/us.pmtiles,/app/data/pmtiles/na.pmtiles,/app/
 **Order matters — most detailed first.** Selection walks the list and takes the
 first archive whose own header covers the requested tile and zoom.
 
+**These are the paths the container sees, not where the files were written.**
+Building on the Docker host writes into the volume's mountpoint, something like
+`/var/lib/docker/volumes/<project>_wwv-data/_data/pmtiles`, while the app reads
+that same volume at `/app/data`. Configuring the host path gives an archive list
+the app cannot open. `build-pmtiles.sh` detects this and prints container paths;
+`APP_PMTILES_DIR` overrides the translation if the mount differs.
+
 Coverage is read from each file's header, never hardcoded. Re-cutting an extract
 with different bounds therefore needs no code change.
 

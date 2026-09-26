@@ -249,12 +249,32 @@ done
 log "archives in $PMTILES_DIR:"
 du -h "$PMTILES_DIR"/*.pmtiles
 echo
+
+# The path the APP will read is not necessarily the path we just wrote to.
+# Building on the Docker host writes to the volume's mountpoint
+# (/var/lib/docker/volumes/<name>/_data/...), while the container sees that same
+# volume mounted somewhere else entirely -- /app/data here. Printing the host
+# path as the config value would produce an archive list the app cannot open.
+APP_DIR="${APP_PMTILES_DIR:-}"
+if [ -z "$APP_DIR" ]; then
+    case "$PMTILES_DIR" in
+        */volumes/*/_data*)
+            APP_DIR="/app/data/pmtiles"
+            log "NOTE: built into a Docker volume from the host."
+            log "  The container reads this volume at /app/data, so the config"
+            log "  below uses container paths, not the paths above."
+            log "  Override with APP_PMTILES_DIR if your mount differs."
+            ;;
+        *) APP_DIR="$PMTILES_DIR" ;;
+    esac
+fi
+
 log "set this in Coolify (most detailed FIRST):"
 printf '  PMTILES_ARCHIVES='
 SEP=""
 for TIER in us na world; do
     [ -f "$PMTILES_DIR/${TIER}.pmtiles" ] || continue
-    printf '%s%s/%s.pmtiles' "$SEP" "$PMTILES_DIR" "$TIER"
+    printf '%s%s/%s.pmtiles' "$SEP" "$APP_DIR" "$TIER"
     SEP=","
 done
 echo
