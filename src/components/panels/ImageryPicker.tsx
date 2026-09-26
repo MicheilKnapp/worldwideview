@@ -28,6 +28,7 @@ export function ImageryPicker() {
     const zoomLayerId = useStore((s) => s.mapConfig.zoomLayerId);
     const autoImageryByZoom = useStore((s) => s.mapConfig.autoImageryByZoom);
     const showPlaceLabels = useStore((s) => s.mapConfig.showPlaceLabels);
+    const showStreetLabels = useStore((s) => s.mapConfig.showStreetLabels);
     const sceneMode = useStore((s) => s.mapConfig.sceneMode);
     const updateMapConfig = useStore((s) => s.updateMapConfig);
 
@@ -142,6 +143,18 @@ export function ImageryPicker() {
                             }}
             />
             <span>Show place names</span>
+          </label>
+
+          <label className="imagery-picker__auto">
+            <input
+              type="checkbox"
+              checked={showStreetLabels}
+              onChange={(e) => {
+                                updateMapConfig({ showStreetLabels: e.target.checked });
+                                trackEvent("street-labels-toggle", { enabled: e.target.checked });
+                            }}
+            />
+            <span>Show street names (close zoom)</span>
           </label>
         </div>
 

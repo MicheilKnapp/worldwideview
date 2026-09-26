@@ -75,6 +75,11 @@ export interface MapConfig {
      * photorealistic tiles, which carry no labels of their own.
      */
     showPlaceLabels: boolean;
+    /**
+     * Whether street names are drawn along roads. Separate from place names:
+     * the data is far heavier and only renders at close zoom.
+     */
+    showStreetLabels: boolean;
     /** Whether OSM 3D Buildings are shown on non-Google imagery layers. */
     showOsmBuildings: boolean;
     /** Active weather overlay layer ID, or null if disabled. */
@@ -146,6 +151,12 @@ export const createConfigSlice: StateCreator<AppStore, [], [], ConfigSlice> = (s
             && typeof window.localStorage.getItem === "function"
                 ? localStorage.getItem("wwv_place_labels") !== "0"
                 : true,
+        showStreetLabels:
+            typeof window !== "undefined"
+            && window.localStorage
+            && typeof window.localStorage.getItem === "function"
+                ? localStorage.getItem("wwv_street_labels") !== "0"
+                : true,
         showOsmBuildings: true,
         weatherOverlay: null,
     },
@@ -161,6 +172,9 @@ export const createConfigSlice: StateCreator<AppStore, [], [], ConfigSlice> = (s
             }
             if (config.showPlaceLabels !== undefined && typeof window !== "undefined" && window.localStorage && typeof window.localStorage.setItem === "function") {
                 localStorage.setItem("wwv_place_labels", config.showPlaceLabels ? "1" : "0");
+            }
+            if (config.showStreetLabels !== undefined && typeof window !== "undefined" && window.localStorage && typeof window.localStorage.setItem === "function") {
+                localStorage.setItem("wwv_street_labels", config.showStreetLabels ? "1" : "0");
             }
             return { mapConfig: { ...state.mapConfig, ...config } };
         }),

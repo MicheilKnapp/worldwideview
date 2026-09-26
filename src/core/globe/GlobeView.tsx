@@ -22,6 +22,7 @@ import { handleEntitySelection, cleanupTrail } from "./SelectionHandler";
 import { useImageryManager } from "./useImageryManager";
 import { useZoomImagerySwitch } from "./useZoomImagerySwitch";
 import { useMapLabels } from "./useMapLabels";
+import { useStreetLabels } from "./useStreetLabels";
 import { getCachedRenderOptions } from "./renderOptionsCache";
 import type { AnimatableItem } from "./EntityRenderer";
 
@@ -125,6 +126,7 @@ enableLighting,
     const { isGoogle3D } = useImageryManager(viewerRef.current, viewerReady);
     useZoomImagerySwitch(viewerRef.current, viewerReady);
     useMapLabels(viewerRef.current, viewerReady);
+    useStreetLabels(viewerRef.current, viewerReady);
     useBorders(viewerRef.current, showLabels, isGoogle3D);
 
     useSelectionAnchor(viewerRef.current, viewerReady, selectedEntity, lockedEntityId, selectionEntityRef, animatablesMapRef);
