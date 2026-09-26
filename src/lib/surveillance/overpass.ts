@@ -23,6 +23,29 @@ export const OVERPASS_MIRRORS = [
     "https://overpass.private.coffee/api/interpreter",
 ] as const;
 
+/** Just the shape these helpers read — `process.env` satisfies it, and so
+ * does a plain object in tests. */
+type EnvLike = Record<string, string | undefined>;
+
+/**
+ * Mirror order for one run, most-preferred first.
+ *
+ * `SURVEILLANCE_OVERPASS_MIRRORS` (comma-separated) overrides the built-in
+ * list, so an operator can point at their own Overpass instance or prefer a
+ * higher-capacity mirror over the busy main endpoint. Entries must be http(s)
+ * URLs; anything else is ignored, and an override that leaves nothing valid
+ * falls back to the defaults rather than failing every tier.
+ */
+export function overpassMirrors(env: EnvLike = process.env): string[] {
+    const raw = env.SURVEILLANCE_OVERPASS_MIRRORS;
+    if (!raw) return [...OVERPASS_MIRRORS];
+    const custom = raw
+        .split(",")
+        .map((m) => m.trim())
+        .filter((m) => m.startsWith("http://") || m.startsWith("https://"));
+    return custom.length > 0 ? custom : [...OVERPASS_MIRRORS];
+}
+
 /** Overpass server-side budget. Global sweeps genuinely need minutes. */
 const QUERY_TIMEOUT_SEC = 600;
 /** Client-side ceiling, a little above the server budget. */
@@ -81,29 +104,70 @@ async function requestMirror(mirror: string, query: string): Promise<OverpassEle
 }
 
 /**
- * Runs one tier against each mirror until one answers.
- * @throws if every mirror fails — the caller decides whether that is fatal.
+ * Outcome of fetching one tier.
+ *
+ * `implausible` means every mirror answered, but all of them returned far
+ * fewer elements than expected. Mirrors are NOT equivalent: one running a
+ * stale planet extract answers 200 with valid JSON and a fraction of the data,
+ * which is indistinguishable from success unless the count is checked. Treating
+ * that as authoritative silently shrinks the dataset.
  */
-export async function fetchTier(tier: Tier): Promise<OverpassElement[]> {
+export interface TierFetchResult {
+    elements: OverpassElement[];
+    mirror: string;
+    implausible: boolean;
+}
+
+/**
+ * Runs one tier against each mirror until one answers with a plausible count.
+ *
+ * @param minExpected Reject a response below this many elements and try the
+ *   next mirror. Callers derive it from the previous successful sweep, which is
+ *   ground truth for this deployment. 0 disables the check (first ever sweep).
+ * @throws if every mirror errored — the caller decides whether that is fatal.
+ */
+export async function fetchTier(tier: Tier, minExpected = 0): Promise<TierFetchResult> {
     const query = buildQuery(tier);
     const failures: string[] = [];
+    let best: { elements: OverpassElement[]; host: string } | null = null;
 
-    for (const mirror of OVERPASS_MIRRORS) {
+    for (const mirror of overpassMirrors()) {
+        const host = new URL(mirror).host;
         const startedAt = Date.now();
         try {
             const elements = await requestMirror(mirror, query);
             const secs = ((Date.now() - startedAt) / 1000).toFixed(1);
+            if (!best || elements.length > best.elements.length) best = { elements, host };
+
+            if (minExpected > 0 && elements.length < minExpected) {
+                const reason =
+                    `returned ${elements.length} elements, below the ${minExpected} floor ` +
+                    `(likely a stale planet extract)`;
+                console.warn(`[surveillance-infrastructure] tier=${tier.id} mirror=${host} ${reason} — trying the next mirror`);
+                failures.push(`${host}: ${reason}`);
+                await sleep(MIRROR_BACKOFF_MS);
+                continue;
+            }
+
             console.log(
-                `[surveillance-infrastructure] tier=${tier.id} mirror=${new URL(mirror).host} ` +
+                `[surveillance-infrastructure] tier=${tier.id} mirror=${host} ` +
                     `elements=${elements.length} in ${secs}s`,
             );
-            return elements;
+            return { elements, mirror: host, implausible: false };
         } catch (err) {
             const reason = err instanceof Error ? err.message : String(err);
-            failures.push(`${new URL(mirror).host}: ${reason}`);
+            failures.push(`${host}: ${reason}`);
             console.warn(`[surveillance-infrastructure] tier=${tier.id} mirror failed — ${reason}`);
             await sleep(MIRROR_BACKOFF_MS);
         }
+    }
+
+    if (best) {
+        console.error(
+            `[surveillance-infrastructure] tier=${tier.id} every mirror was implausible; ` +
+                `best was ${best.elements.length} from ${best.host} (floor ${minExpected})`,
+        );
+        return { elements: best.elements, mirror: best.host, implausible: true };
     }
 
     throw new Error(`all Overpass mirrors failed for tier "${tier.id}" — ${failures.join("; ")}`);

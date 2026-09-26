@@ -105,8 +105,12 @@ export function tierById(id: string): Tier | undefined {
     return TIERS.find((t) => t.id === id);
 }
 
+/** Just the shape these helpers read — `process.env` satisfies it, and so
+ * does a plain object in tests. */
+type EnvLike = Record<string, string | undefined>;
+
 /** Tiers enabled for a run. `PUBLIC_SPACE_TIER=0` drops the unverified tier. */
-export function enabledTiers(env: NodeJS.ProcessEnv = process.env): Tier[] {
+export function enabledTiers(env: EnvLike = process.env): Tier[] {
     const includeUnverified = env.PUBLIC_SPACE_TIER !== "0";
     return TIERS.filter((t) => t.verified || includeUnverified);
 }

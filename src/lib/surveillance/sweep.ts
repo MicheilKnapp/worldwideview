@@ -27,6 +27,24 @@ const TTL_SECONDS = 48 * 60 * 60;
 /** Guards against a second trigger piling onto a sweep already in flight. */
 const LOCK_TTL_SECONDS = 60 * 60;
 const LOCK_KEY = `${KEY_PREFIX}:lock`;
+/**
+ * A tier must return at least this fraction of its previous count to be
+ * believed. Real-world churn between sweeps is a fraction of a percent; a
+ * drop past this means the mirror is wrong, not the world.
+ */
+const PLAUSIBLE_FRACTION = 0.6;
+
+/** Per-tier counts from the last good sweep, or {} if there is none. */
+async function previousCounts(): Promise<Record<string, number>> {
+    try {
+        const raw = await redis.get(`${KEY_PREFIX}:index`);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw) as { counts?: Record<string, number> };
+        return parsed.counts ?? {};
+    } catch {
+        return {};
+    }
+}
 
 export interface SweepResult {
     fetchedAt: string;
@@ -86,12 +104,24 @@ export async function runSweep(): Promise<SweepResult | null> {
 
         // Smallest tiers first: if the big ALPR sweep exhausts every mirror, we
         // still publish the cheap ones rather than losing the whole run.
+        // Floors derived from the last good sweep: ground truth for this
+        // deployment, and the only way to notice a mirror serving a stale
+        // planet extract (it answers 200 with valid JSON and a fraction of
+        // the rows).
+        const previous = await previousCounts();
+
         const tiers = [...enabledTiers()].sort((a, b) => a.approxCount - b.approxCount);
         for (const tier of tiers) {
+            const prior = previous[tier.id] ?? 0;
+            const floor = prior > 0 ? Math.floor(prior * PLAUSIBLE_FRACTION) : 0;
             try {
-                const elements = await fetchTier(tier);
+                const result = await fetchTier(tier, floor);
+                if (result.implausible) {
+                    degraded.push(tier.id);
+                    continue;
+                }
                 batches.push(
-                    elements
+                    result.elements
                         .map((el) => toRecord(el, tier.id))
                         .filter((r): r is DeviceRecord => r !== null),
                 );
@@ -99,15 +129,22 @@ export async function runSweep(): Promise<SweepResult | null> {
             } catch (err) {
                 degraded.push(tier.id);
                 console.error(
-                    `[surveillance-sweep] tier "${tier.id}" failed, keeping its previous data:`,
+                    `[surveillance-sweep] tier "${tier.id}" failed:`,
                     err instanceof Error ? err.message : err,
                 );
             }
         }
 
-        if (succeeded.length === 0) {
-            // Writing now would replace a good cache with nothing.
-            throw new Error("every tier failed — cache left untouched");
+        // All or nothing. Region tiles are whole-tile replacements built from
+        // whatever succeeded, so writing after a partial failure DELETES the
+        // missing tier's devices rather than preserving them. Leaving the
+        // previous cache intact and retrying on the next tick is the only way
+        // "keep what we had" is actually true.
+        if (degraded.length > 0) {
+            throw new Error(
+                `tiers [${degraded.join(", ")}] failed or returned implausible counts — ` +
+                    `cache left untouched (a partial write would drop them)`,
+            );
         }
 
         const devices = mergeByPriority(batches);
