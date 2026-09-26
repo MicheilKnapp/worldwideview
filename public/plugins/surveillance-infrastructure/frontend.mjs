@@ -82,6 +82,16 @@ function tierMeta(id) {
 /**
 * Inline SVG icons as data URIs — no binary assets to ship or 404.
 *
+* Icons are deliberately COLOUR-NEUTRAL (white). Cesium multiplies a
+* billboard's texture by `CesiumEntityOptions.color`, so baking a tier colour
+* into the SVG and leaving `color` unset means the icon gets multiplied by the
+* host's default, which is CYAN — the rendered points then match nothing in the
+* legend. Keeping the artwork white and passing the tier colour as `color`
+* makes the tint authoritative and the legend correct by construction.
+*
+* Fill opacity survives tinting, so the view cone stays translucent. The near
+* black outline stays dark, since black multiplied by anything is black.
+*
 * Each icon points north at rotation 0, so the renderer's bearing rotation
 * lines the cone up with the device's tagged `direction`.
 */
@@ -89,31 +99,30 @@ function dataUri(svg) {
 	return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg.replace(/\s+/g, " ").trim())}`;
 }
 /** Camera body plus a view cone, for devices with a tagged bearing. */
-function directionalIcon(color) {
+function directionalIcon() {
 	return dataUri(`
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
-          <path d="M24 24 L10 2 A26 26 0 0 1 38 2 Z" fill="${color}" fill-opacity="0.35"/>
-          <circle cx="24" cy="24" r="6" fill="${color}" stroke="#0b0b0b" stroke-width="2"/>
+          <path d="M24 24 L10 2 A26 26 0 0 1 38 2 Z" fill="#ffffff" fill-opacity="0.35"/>
+          <circle cx="24" cy="24" r="6" fill="#ffffff" stroke="#0b0b0b" stroke-width="2"/>
         </svg>
     `);
 }
 /** Plain marker for devices with no usable direction tag. */
-function omniIcon(color) {
+function omniIcon() {
 	return dataUri(`
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
-          <circle cx="24" cy="24" r="9" fill="${color}" fill-opacity="0.30"/>
-          <circle cx="24" cy="24" r="6" fill="${color}" stroke="#0b0b0b" stroke-width="2"/>
+          <circle cx="24" cy="24" r="9" fill="#ffffff" fill-opacity="0.30"/>
+          <circle cx="24" cy="24" r="6" fill="#ffffff" stroke="#0b0b0b" stroke-width="2"/>
         </svg>
     `);
 }
-/** Icons are static per tier — build them once, not per entity render. */
+/** Two icons total, built once. The tier colour is applied as a tint. */
 var ICON_CACHE = /* @__PURE__ */ new Map();
-function iconFor(tier, directional) {
-	const key = `${tier}:${directional}`;
+function iconFor(directional) {
+	const key = directional ? "cone" : "omni";
 	let icon = ICON_CACHE.get(key);
 	if (!icon) {
-		const { color } = tierMeta(tier);
-		icon = directional ? directionalIcon(color) : omniIcon(color);
+		icon = directional ? directionalIcon() : omniIcon();
 		ICON_CACHE.set(key, icon);
 	}
 	return icon;
@@ -324,6 +333,25 @@ function createViewportComponent(host) {
 }
 //#endregion
 //#region local-plugins/surveillance-infrastructure/src/index.ts
+/**
+* The tier contributing the most devices to a summary cell.
+*
+* Summary cells are mixed by nature, so one colour can only ever be
+* representative. Picking the majority keeps the swatch meaningful and
+* consistent with the legend; ties fall to TIER_ORDER, which puts the
+* verified tiers ahead of the unverified one.
+*/
+function dominantTier(props) {
+	const counts = {
+		alpr: Number(props.alpr) || 0,
+		gunshot_detector: Number(props.gunshotDetectors) || 0,
+		afr: Number(props.facialRecognition) || 0,
+		public_space: Number(props.publicSpaceUnverified) || 0
+	};
+	let best = TIER_ORDER[0];
+	for (const id of TIER_ORDER) if (counts[id] > counts[best]) best = id;
+	return best;
+}
 var SurveillanceInfrastructurePlugin = class {
 	id = PLUGIN_ID;
 	name = "Surveillance Infrastructure";
@@ -375,9 +403,9 @@ var SurveillanceInfrastructurePlugin = class {
 			const count = typeof props.count === "number" ? props.count : 1;
 			return {
 				type: "point",
-				color: "#ff4d4d",
+				color: TIERS[dominantTier(props)].color,
 				size: Math.min(34, 9 + Math.log10(count + 1) * 9),
-				outlineColor: "#1a0000",
+				outlineColor: "#0b0b0b",
 				outlineWidth: 2,
 				labelText: entity.label,
 				disableClustering: true
@@ -388,7 +416,8 @@ var SurveillanceInfrastructurePlugin = class {
 		const directional = typeof heading === "number" && Number.isFinite(heading);
 		return {
 			type: "billboard",
-			iconUrl: iconFor(tier, directional),
+			iconUrl: iconFor(directional),
+			color: tierMeta(tier).color,
 			iconScale: directional ? .55 : .4,
 			rotation: directional ? heading : 0
 		};

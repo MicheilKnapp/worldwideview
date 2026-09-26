@@ -31,6 +31,28 @@ interface PluginSettings {
     enabledTiers?: TierId[];
 }
 
+/**
+ * The tier contributing the most devices to a summary cell.
+ *
+ * Summary cells are mixed by nature, so one colour can only ever be
+ * representative. Picking the majority keeps the swatch meaningful and
+ * consistent with the legend; ties fall to TIER_ORDER, which puts the
+ * verified tiers ahead of the unverified one.
+ */
+function dominantTier(props: Record<string, unknown>): TierId {
+    const counts: Record<TierId, number> = {
+        alpr: Number(props.alpr) || 0,
+        gunshot_detector: Number(props.gunshotDetectors) || 0,
+        afr: Number(props.facialRecognition) || 0,
+        public_space: Number(props.publicSpaceUnverified) || 0,
+    };
+    let best: TierId = TIER_ORDER[0];
+    for (const id of TIER_ORDER) {
+        if (counts[id] > counts[best]) best = id;
+    }
+    return best;
+}
+
 export default class SurveillanceInfrastructurePlugin implements WorldPlugin {
     id = PLUGIN_ID;
     name = "Surveillance Infrastructure";
@@ -93,9 +115,12 @@ export default class SurveillanceInfrastructurePlugin implements WorldPlugin {
             const count = typeof props.count === "number" ? props.count : 1;
             return {
                 type: "point",
-                color: "#ff4d4d",
+                // Coloured by the tier that dominates the cell, so a cell of
+                // gunshot detectors does not draw in the ALPR colour and
+                // contradict the legend.
+                color: TIERS[dominantTier(props)].color,
                 size: Math.min(34, 9 + Math.log10(count + 1) * 9),
-                outlineColor: "#1a0000",
+                outlineColor: "#0b0b0b",
                 outlineWidth: 2,
                 labelText: entity.label,
                 disableClustering: true,
@@ -108,7 +133,12 @@ export default class SurveillanceInfrastructurePlugin implements WorldPlugin {
 
         return {
             type: "billboard",
-            iconUrl: iconFor(tier, directional),
+            iconUrl: iconFor(directional),
+            // The icon artwork is white; this tint is what gives it the tier
+            // colour, and it is the exact value getLegend() reports. Omitting
+            // it would let the host default (cyan) multiply the texture, so
+            // nothing on the map would match the legend swatches.
+            color: tierMeta(tier).color,
             iconScale: directional ? 0.55 : 0.4,
             rotation: directional ? heading : 0,
         };
