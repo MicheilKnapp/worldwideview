@@ -97,3 +97,46 @@ describe("fetchTier plausibility", () => {
         expect(res.elements).toHaveLength(5);
     }, 30_000);
 });
+
+describe("planet freshness", () => {
+    const tier = TIERS.find((t) => t.id === "gunshot_detector")!;
+    const reply = (base: string | null, n = 3692) =>
+        JSON.stringify({
+            ...(base ? { osm3s: { timestamp_osm_base: base } } : {}),
+            elements: Array.from({ length: n }, (_, i) => ({ type: "node", id: i, lat: 0, lon: 0 })),
+        });
+    const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000).toISOString().replace(/\.\d+Z$/, "Z");
+
+    beforeEach(() => vi.restoreAllMocks());
+
+    it("rejects a months-old extract and moves to the next mirror", async () => {
+        // private.coffee answered 200 with a planet base ~117 days behind.
+        let call = 0;
+        vi.stubGlobal("fetch", vi.fn(async () => {
+            const body = call++ === 0 ? reply(iso(117)) : reply(iso(0));
+            return { ok: true, status: 200, statusText: "OK", text: async () => body } as Response;
+        }));
+        vi.stubEnv("SURVEILLANCE_OVERPASS_MIRRORS", "https://stale.example/api/interpreter,https://fresh.example/api/interpreter");
+
+        const res = await fetchTier(tier);
+        expect(res.mirror).toBe("fresh.example");
+        expect(res.implausible).toBe(false);
+    }, 30_000);
+
+    it("accepts a mirror a few hours behind", async () => {
+        vi.stubGlobal("fetch", vi.fn(async () =>
+            ({ ok: true, status: 200, statusText: "OK", text: async () => reply(iso(0.25)) }) as Response));
+        vi.stubEnv("SURVEILLANCE_OVERPASS_MIRRORS", "https://fresh.example/api/interpreter");
+
+        await expect(fetchTier(tier)).resolves.toMatchObject({ mirror: "fresh.example" });
+    }, 30_000);
+
+    it("does not reject a response that omits the timestamp", async () => {
+        // Missing field is not evidence of staleness; the count floor still applies.
+        vi.stubGlobal("fetch", vi.fn(async () =>
+            ({ ok: true, status: 200, statusText: "OK", text: async () => reply(null) }) as Response));
+        vi.stubEnv("SURVEILLANCE_OVERPASS_MIRRORS", "https://nots.example/api/interpreter");
+
+        await expect(fetchTier(tier)).resolves.toMatchObject({ implausible: false });
+    }, 30_000);
+});

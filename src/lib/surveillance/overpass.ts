@@ -16,10 +16,27 @@
 
 import type { Tier } from "./tiers";
 
+/**
+ * Mirrors in preference order.
+ *
+ * Ordered by measured planet freshness, not availability: a mirror on a stale
+ * extract answers 200 with valid JSON and silently short data. Measured
+ * 2026-09-26 via `osm3s.timestamp_osm_base`:
+ *
+ *   overpass-api.de       current
+ *   lz4.overpass-api.de   current (same backend as the main instance)
+ *   kumi.systems          returned 102,635 ALPR / 2,039 gunshot against
+ *                         154,238 / 3,692 from the main instance
+ *   private.coffee        planet base 2026-06-01, ~117 days behind
+ *
+ * The last two stay listed as genuine fallbacks -- short data beats no data
+ * when the fresh mirrors are down -- but only after both fresh ones, and the
+ * freshness check below rejects them while anything better is reachable.
+ */
 export const OVERPASS_MIRRORS = [
     "https://overpass-api.de/api/interpreter",
-    "https://overpass.kumi.systems/api/interpreter",
     "https://lz4.overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
 ] as const;
 
@@ -50,6 +67,17 @@ export function overpassMirrors(env: EnvLike = process.env): string[] {
 const QUERY_TIMEOUT_SEC = 600;
 /** Client-side ceiling, a little above the server budget. */
 const REQUEST_TIMEOUT_MS = 660_000;
+/**
+ * Reject a mirror whose planet extract is older than this.
+ *
+ * Every Overpass response carries `osm3s.timestamp_osm_base`, the planet
+ * snapshot it answered from. Checking it catches a stale mirror on the very
+ * first query, with no history to compare against -- unlike the element-count
+ * floor, which needs a previous successful sweep. A healthy mirror is minutes
+ * behind; a week is generous headroom for one catching up.
+ */
+const MAX_PLANET_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
 /** Pause between mirrors so a struggling instance is not hammered. */
 const MIRROR_BACKOFF_MS = 5_000;
 
@@ -95,8 +123,22 @@ async function requestMirror(mirror: string, query: string): Promise<OverpassEle
         if (!body.trimStart().startsWith("{")) {
             throw new Error(`non-JSON response (${body.slice(0, 160).replace(/\s+/g, " ")})`);
         }
-        const parsed = JSON.parse(body) as { elements?: OverpassElement[] };
+        const parsed = JSON.parse(body) as {
+            elements?: OverpassElement[];
+            osm3s?: { timestamp_osm_base?: string };
+        };
         if (!Array.isArray(parsed.elements)) throw new Error("payload has no elements array");
+
+        // Absent or unparseable timestamp: let it through rather than rejecting
+        // a mirror over a missing field. The count floor is the second net.
+        const base = parsed.osm3s?.timestamp_osm_base;
+        if (base) {
+            const age = Date.now() - new Date(base).getTime();
+            if (Number.isFinite(age) && age > MAX_PLANET_AGE_MS) {
+                const days = Math.round(age / 86_400_000);
+                throw new Error(`stale planet extract: base ${base} is ~${days} days behind`);
+            }
+        }
         return parsed.elements;
     } finally {
         clearTimeout(timer);
