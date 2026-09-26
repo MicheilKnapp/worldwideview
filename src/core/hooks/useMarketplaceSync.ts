@@ -9,6 +9,7 @@ import type { PluginManifest } from "@/core/plugins/PluginManifest";
 import {
   getApprovedUnverifiedIds,
   approveUnverifiedPlugin,
+  isSameOriginEntry,
 } from "@/lib/marketplace/trustedPlugins";
 import { getDisabledPluginIds } from "@/core/plugins/pluginPreferences";
 import { isDemo } from "@/core/edition";
@@ -123,9 +124,24 @@ export function useMarketplaceSync(hostReady: boolean) {
                 if (!manifest.id) continue;
                 if (loadedIds.current.has(manifest.id)) continue;
 
-                // Unverified + not yet approved → collect for batch review
-                // On demo, skip the gate — admin already approved by installing
-                if (!isDemo && manifest.trust === "unverified" && !approved.has(manifest.id)) {
+                // Unverified + not yet approved → collect for batch review.
+                // On demo, skip the gate — admin already approved by installing.
+                // Same-origin bundles also skip it: the dialog warns that a
+                // plugin "could access your session data", which is a statement
+                // about third-party code. A bundle the operator committed to
+                // their own deployment is already as trusted as the app serving
+                // it, and making every visitor approve it per-browser would put
+                // a scare dialog in front of a first-party layer.
+                const sameOrigin = isSameOriginEntry(
+                    manifest.entry,
+                    typeof window === "undefined" ? null : window.location.origin,
+                );
+                if (
+                    !isDemo
+                    && manifest.trust === "unverified"
+                    && !approved.has(manifest.id)
+                    && !sameOrigin
+                ) {
                     newPending.push(manifest);
                     continue;
                 }

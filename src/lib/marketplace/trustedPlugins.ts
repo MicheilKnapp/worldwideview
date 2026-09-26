@@ -17,3 +17,34 @@ export function approveUnverifiedPlugin(pluginId: string): void {
   approved.add(pluginId);
   localStorage.setItem(STORAGE_KEY, JSON.stringify([...approved]));
 }
+
+/**
+ * True when a plugin's bundle is served from this deployment's own origin.
+ *
+ * The unverified-plugin gate exists to stop third-party code — typically a CDN
+ * bundle — running with access to the visitor's session. That risk does not
+ * apply to a bundle the operator committed to their own deployment: it is
+ * already as trusted as the application serving it, and no one else can put a
+ * file there. Such plugins therefore skip the approval dialog, while genuinely
+ * third-party entries (unpkg, jsDelivr) stay gated.
+ *
+ * Resolved through `new URL(...)` rather than a prefix test on purpose. A
+ * protocol-relative entry like "//evil.example/x.mjs" begins with "/" but
+ * resolves to a different origin, so `entry.startsWith("/")` would wave through
+ * exactly the case the gate is meant to catch.
+ *
+ * @param entry The manifest's entry, relative or absolute.
+ * @param origin The current origin, e.g. window.location.origin.
+ */
+export function isSameOriginEntry(
+    entry: string | undefined | null,
+    origin: string | undefined | null,
+): boolean {
+    if (!entry || !origin) return false;
+    try {
+        return new URL(entry, origin).origin === new URL(origin).origin;
+    } catch {
+        // Unparseable entry or origin: treat as untrusted.
+        return false;
+    }
+}
