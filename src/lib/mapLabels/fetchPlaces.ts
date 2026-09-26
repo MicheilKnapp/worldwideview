@@ -12,6 +12,8 @@ import { LABELLED_KINDS, type PlaceKind, type PlaceLabel } from "./places";
 
 /** Overpass server-side budget. Place queries over one view are small. */
 const TIMEOUT_SEC = 25;
+/** Client-side ceiling, a little above the server budget. */
+const REQUEST_TIMEOUT_MS = 30_000;
 
 /** Ceiling on what Overpass returns; thinning happens client-side per zoom. */
 const MAX_ELEMENTS = 800;
@@ -24,12 +26,21 @@ export interface Bbox {
 }
 
 export function buildPlacesQuery(bbox: Bbox): string {
-    const kinds = LABELLED_KINDS.join("|");
     const box = `${bbox.south},${bbox.west},${bbox.north},${bbox.east}`;
+    // The bounding box comes FIRST, deliberately. Leading with a key regex
+    // (`node["place"~"^(city|town|...)$"](bbox)`) made every mirror answer 504:
+    // the regex is evaluated before the spatial filter narrows anything, so
+    // Overpass scans place nodes globally. Filtering spatially first turns the
+    // same question into a fast index lookup.
+    //
+    // No regex at all now — every named place in view is fetched and the kinds
+    // we do not label are dropped in toPlace(). Simpler query, less to go wrong
+    // upstream, and the filtering is already covered by tests.
+    //
     // Nodes only: place polygons would need centroids, and OSM tags a labelling
     // node for populated places anyway.
     return `[out:json][timeout:${TIMEOUT_SEC}];
-node["place"~"^(${kinds})$"]["name"](${box});
+node(${box})["place"]["name"];
 out body ${MAX_ELEMENTS};`;
 }
 
@@ -64,7 +75,7 @@ export async function fetchPlaces(bbox: Bbox): Promise<PlaceLabel[]> {
 
     for (const mirror of overpassMirrors()) {
         try {
-            const elements = await requestMirror(mirror, query);
+            const elements = await requestMirror(mirror, query, REQUEST_TIMEOUT_MS);
             return elements
                 .map(toPlace)
                 .filter((p): p is PlaceLabel => p !== null);

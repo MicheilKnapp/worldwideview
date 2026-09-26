@@ -11,6 +11,7 @@ import {
 
 import { useStore } from "@/core/state/store";
 import { selectVisiblePlaces, type PlaceLabel } from "@/lib/mapLabels/places";
+import { tileCacheKey, tilesForBbox } from "@/lib/mapLabels/tiles";
 
 /**
  * Draws OSM place names over the globe.
@@ -25,7 +26,7 @@ import { selectVisiblePlaces, type PlaceLabel } from "@/lib/mapLabels/places";
 /** Above this camera height the view is too wide for place names to help. */
 const MAX_HEIGHT_M = 3_000_000;
 /** Camera settles before a request is spent. */
-const DEBOUNCE_MS = 450;
+const DEBOUNCE_MS = 700;
 const RAD_TO_DEG = 180 / Math.PI;
 
 interface Rect {
@@ -116,13 +117,15 @@ export function useMapLabels(viewerInstance: CesiumViewer | null, viewerReady: b
             const rect = readCameraRect(viewer);
             if (!rect) return;
 
-            const key = [rect.west, rect.south, rect.east, rect.north]
-                .map((v) => v.toFixed(2))
-                .join(",");
+            // Key on the TILES the view covers, not the view itself. Keying on
+            // the viewport meant every pan and zoom looked like new data and
+            // hit the network; tiles mean movement inside an already-fetched
+            // area costs nothing, and only crossing a tile boundary fetches.
+            const key = tilesForBbox(rect).map(tileCacheKey).join("|");
 
-            // Same view as last time: re-thin for the new height without
-            // re-fetching, which keeps zooming in place free.
             if (key === lastKeyRef.current) {
+                // Same tiles: re-thin for the new height without re-fetching,
+                // so zooming in place is free.
                 draw(height);
                 return;
             }
@@ -130,7 +133,12 @@ export function useMapLabels(viewerInstance: CesiumViewer | null, viewerReady: b
             controller?.abort();
             controller = new AbortController();
             try {
-                const res = await fetch(`/api/map-labels?bbox=${key}`, { signal: controller.signal });
+                const bboxParam = [rect.west, rect.south, rect.east, rect.north]
+                    .map((v) => v.toFixed(3))
+                    .join(",");
+                const res = await fetch(`/api/map-labels?bbox=${bboxParam}`, {
+                    signal: controller.signal,
+                });
                 if (!res.ok) return;
                 const json = (await res.json()) as { places?: PlaceLabel[] };
                 if (cancelled || viewer.isDestroyed()) return;

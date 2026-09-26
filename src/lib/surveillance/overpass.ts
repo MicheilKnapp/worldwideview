@@ -109,9 +109,13 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * than re-implementing them: a busy instance answers 200 with an HTML body,
  * and a stale mirror answers 200 with months-old data.
  */
-export async function requestMirror(mirror: string, query: string): Promise<OverpassElement[]> {
+export async function requestMirror(
+    mirror: string,
+    query: string,
+    timeoutMs: number = REQUEST_TIMEOUT_MS,
+): Promise<OverpassElement[]> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
         const res = await fetch(mirror, {
             method: "POST",
