@@ -18,6 +18,23 @@ import { parseBbox } from "@/lib/surveillance/regions";
 
 /** Road geometry changes slowly. */
 const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
+
+/**
+ * An empty tile is cached briefly, not for a week.
+ *
+ * Emptiness is far more often a symptom than a fact: a throttled upstream, a
+ * misconfigured archive, a header whose bounds overstate its contents. Storing
+ * that for the full TTL turns a few minutes of trouble into a week of blank map
+ * that reads as a rendering bug — which is what happened when Overpass throttled
+ * this client, and again when a globe-spanning archive header made European
+ * tiles resolve to nothing. Genuinely empty ground costs an occasional re-read.
+ */
+const EMPTY_TTL_SECONDS = 60 * 60;
+
+/** Full TTL for a tile with content, a short one for an empty answer. */
+function ttlFor(count: number): number {
+    return count > 0 ? CACHE_TTL_SECONDS : EMPTY_TTL_SECONDS;
+}
 /** Shared with the place route: stop asking a service that is refusing us. */
 const BREAKER_KEY = "map-labels:upstream-cooldown";
 const BREAKER_SECONDS = 15 * 60;
@@ -65,7 +82,7 @@ export async function GET(request: Request) {
                 const ways = await fetchStreetsFromTiles(tileBbox(tile));
                 if (ways) {
                     try {
-                        await redis.set(key, JSON.stringify(ways), "EX", CACHE_TTL_SECONDS);
+                        await redis.set(key, JSON.stringify(ways), "EX", ttlFor(ways.length));
                     } catch (err) {
                         console.warn("[map-labels/streets] cache write failed:", err);
                     }
@@ -84,7 +101,7 @@ export async function GET(request: Request) {
         try {
             const ways = await fetchStreets(tileBbox(tile));
             try {
-                await redis.set(key, JSON.stringify(ways), "EX", CACHE_TTL_SECONDS);
+                await redis.set(key, JSON.stringify(ways), "EX", ttlFor(ways.length));
             } catch (err) {
                 console.warn("[map-labels/streets] cache write failed:", err);
             }

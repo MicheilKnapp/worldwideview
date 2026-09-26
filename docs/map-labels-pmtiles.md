@@ -171,17 +171,31 @@ for trying an archive before copying it to the volume.
    `selectStreetLabels`, `clipToView`, `anchorsAlong`, `simplifyPolyline`,
    `textTexture` and the billboard rotation.
 
-When only a coarse archive covers an area, the read retries at progressively
-lower zooms, so such a view still gets labels — fewer of them — rather than none.
+Each archive is asked at **its own maximum zoom**, not at the zoom requested. A
+tiered set holds the same ground at different detail, so a request for z15 means
+"the best available detail here" — z14 from the street-level archive, z12 from
+the planet-wide one. A view over an area only covered by a coarse archive
+therefore still gets labels, just fewer of them.
 
-An archive's header states a **bounding box**, which is always looser than the
-tiles it holds: the US region's bounds reach into Canada, Mexico and the Pacific
-without containing a tile there. So an empty answer from a covering archive is
-not authoritative, and every remaining archive is still asked. Skipping that
-would let the most detailed tier shadow all the coarser ones across the slack in
-its own bounds — Canadian street labels would silently return nothing. Only once
-every covering archive agrees a tile is empty does the read stop, which keeps
-open ocean from walking all the way down to z0.
+**An empty answer is never authoritative.** A header states one bounding box,
+which is always looser than the tiles behind it, so every archive is asked before
+a tile is treated as absent. Two things make this more than a theoretical
+concern:
+
+- The `us` region's bounds reach into Canada and Mexico. Treating its empty
+  answer as final would let it shadow `na.pmtiles` — Canadian street labels would
+  silently return nothing.
+- Worse, that region includes a polygon for the **western Aleutians**, east of
+  the antimeridian. Alaska sits at `-180` and the Aleutians at `180`, so the
+  bounding box spans **the whole globe** in longitude: `us.pmtiles` claims to
+  cover Paris and Tokyo. An earlier version walked the whole archive set down one
+  zoom at a time and stopped at the first empty answer, so European views
+  reached z14, saw that claim, got no tile and gave up before ever reaching z12
+  where the world archive has the data. Street labels worked in North America
+  and nowhere else.
+
+Asking each archive at the zoom it can serve avoids both, and costs at most one
+index lookup per archive per tile.
 
 ## Schema notes
 

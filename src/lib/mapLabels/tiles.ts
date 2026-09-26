@@ -22,6 +22,18 @@ export const TILE_SIZES_DEG = [16, 8, 4, 2, 1, 0.5, 0.25] as const;
 /** Never fetch more than this many tiles for one view. */
 export const MAX_TILES_PER_VIEW = 4;
 
+/**
+ * Streets get a larger budget than places.
+ *
+ * Street tiles are small, so a view at the top of the street-label range spans
+ * more of them than a place view ever does. The cap is a backstop against
+ * request amplification, and since these are now local archive reads rather
+ * than Overpass queries, a handful more is cheap. Too low a cap does not
+ * degrade gracefully: tiles enumerate from the south-west, so a truncated list
+ * labels the bottom-left of the view and leaves the rest blank.
+ */
+export const MAX_STREET_TILES_PER_VIEW = 9;
+
 export interface Bbox {
     west: number;
     south: number;
@@ -59,23 +71,27 @@ export function chooseTileSize(bbox: Bbox): number {
     return TILE_SIZES_DEG[0];
 }
 
-function snap(value: number, size: number): number {
-    return Math.floor(value / size) * size;
-}
-
-/** Enumerates the tiles of a given size that a view touches. */
-function tilesAtSize(bbox: Bbox, size: number): Tile[] {
+/**
+ * Enumerates the tiles of a given size that a view touches.
+ *
+ * Indices are stepped as integers rather than accumulating `lat += size`.
+ * Accumulating drifts: starting at 48.84 and adding 0.01 three times reaches
+ * 48.860000000000005, which compares greater than a limit of 48.86, so the last
+ * row is dropped. Tiles enumerate from the south-west, so the effect was a view
+ * silently missing labels along its top and right edges.
+ */
+function tilesAtSize(bbox: Bbox, size: number, maxTiles = MAX_TILES_PER_VIEW): Tile[] {
     const tiles: Tile[] = [];
 
-    const latStart = snap(Math.max(bbox.south, -90), size);
-    const latEnd = snap(Math.min(bbox.north, 90), size);
-    const lonStart = snap(Math.max(bbox.west, -180), size);
-    const lonEnd = snap(Math.min(bbox.east, 180), size);
+    const latFrom = Math.floor(Math.max(bbox.south, -90) / size);
+    const latTo = Math.floor(Math.min(bbox.north, 90) / size);
+    const lonFrom = Math.floor(Math.max(bbox.west, -180) / size);
+    const lonTo = Math.floor(Math.min(bbox.east, 180) / size);
 
-    for (let lat = latStart; lat <= latEnd; lat += size) {
-        for (let lon = lonStart; lon <= lonEnd; lon += size) {
-            tiles.push({ lat, lon, size });
-            if (tiles.length >= MAX_TILES_PER_VIEW) return tiles;
+    for (let latIndex = latFrom; latIndex <= latTo; latIndex++) {
+        for (let lonIndex = lonFrom; lonIndex <= lonTo; lonIndex++) {
+            tiles.push({ lat: latIndex * size, lon: lonIndex * size, size });
+            if (tiles.length >= maxTiles) return tiles;
         }
     }
     return tiles;
@@ -104,11 +120,12 @@ export function tileBbox(tile: Tile): Bbox {
  *
  * `out geom` returns every coordinate of every way, so a street tile carries
  * orders of magnitude more data than a place tile covering the same ground.
- * These sizes are deliberately small, and street labels only render close in
- * anyway (see MAX_STREET_LABEL_HEIGHT_M), so a small tile still covers the
- * whole view.
+ * These sizes are small for that reason. The coarsest, 0.16 degrees, exists to
+ * cover a view at the top of the street-label range; going coarser would be
+ * self-defeating, because a larger tile forces a lower PMTiles zoom, and the
+ * roads layer carries no named ways worth labelling below z11.
  */
-export const STREET_TILE_SIZES_DEG = [0.08, 0.04, 0.02, 0.01] as const;
+export const STREET_TILE_SIZES_DEG = [0.16, 0.08, 0.04, 0.02, 0.01] as const;
 
 export function chooseStreetTileSize(bbox: Bbox): number {
     const width = Math.abs(bbox.east - bbox.west);
@@ -118,14 +135,14 @@ export function chooseStreetTileSize(bbox: Bbox): number {
         const size = STREET_TILE_SIZES_DEG[i];
         const across = Math.floor(width / size) + 1;
         const down = Math.floor(height / size) + 1;
-        if (across * down <= MAX_TILES_PER_VIEW) return size;
+        if (across * down <= MAX_STREET_TILES_PER_VIEW) return size;
     }
     return STREET_TILE_SIZES_DEG[0];
 }
 
 /** Every street tile the view touches. */
 export function streetTilesForBbox(bbox: Bbox): Tile[] {
-    return tilesAtSize(bbox, chooseStreetTileSize(bbox));
+    return tilesAtSize(bbox, chooseStreetTileSize(bbox), MAX_STREET_TILES_PER_VIEW);
 }
 
 export function streetTileCacheKey(tile: Tile): string {

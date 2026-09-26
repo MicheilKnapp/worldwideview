@@ -19,7 +19,7 @@
     },
     {
       "type": "Feature",
-      "properties": { "name": "Western Aleutians, east of the antimeridian" },
+      "properties": { "name": "Western Aleutians, east of the antimeridian. NOTE: this puts the archive's header bounds at -180..180 longitude, since Alaska sits on the other side of it. Archive selection must therefore never treat an empty answer from this archive as proof a tile is absent - see docs/map-labels-pmtiles.md." },
       "geometry": {
         "type": "Polygon",
         "coordinates": [[[172.0,51.0],[180.0,51.0],[180.0,54.5],[172.0,54.5],[172.0,51.0]]]

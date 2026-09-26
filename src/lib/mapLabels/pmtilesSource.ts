@@ -133,12 +133,25 @@ export interface TileResult {
 }
 
 /**
- * Fetches one tile from the most detailed archive that covers it.
+ * Fetches one tile from the most detailed archive that has it.
  *
- * When no archive holds the requested zoom, the request is retried at
- * progressively coarser zooms down to `minZoom`. A view over an area only
- * covered by a low-detail archive therefore still gets labels, just fewer of
- * them, rather than nothing at all.
+ * Each archive is asked at ITS OWN maximum zoom, not at the requested one. A
+ * tiered set holds the same ground at different detail, so a request for z15
+ * means "the best available detail here", which is z14 from a street-level
+ * archive and z12 from a planet-wide one. Asking every archive about z15 and
+ * then walking the whole set down one zoom at a time conflates two different
+ * questions and gets the answer wrong.
+ *
+ * Concretely, it broke Europe. A header states one bounding box, and a United
+ * States region cut with a polygon for the western Aleutians spans from -180 to
+ * 180 in longitude, because Alaska and the Aleutians sit either side of the
+ * antimeridian. So us.pmtiles claims to cover Paris. Descending globally, the
+ * search reached z14, found that claim, got no tile, concluded the ground was
+ * empty and stopped — never reaching z12, where the world archive has the data.
+ *
+ * An empty answer is therefore never authoritative: a header's box is always
+ * looser than the tiles behind it. Only after every archive has been asked, each
+ * at the zoom it can actually serve, is a tile treated as absent.
  */
 export async function getVectorTile(
     coord: TileCoord,
@@ -147,46 +160,36 @@ export async function getVectorTile(
     const open = openArchives();
     if (open.length === 0) return null;
 
-    for (let z = coord.z; z >= minZoom; z--) {
+    // Configured most detailed first, so the first archive with data wins.
+    for (const archive of open) {
+        const header = await headerFor(archive);
+        if (!header) continue;
+
+        // Never above what this archive holds, never above what was asked for.
+        const z = Math.min(coord.z, header.maxZoom);
+        if (z < minZoom || z < header.minZoom) continue;
+
         const shift = coord.z - z;
         const at: TileCoord = {
             z,
             x: Math.floor(coord.x / 2 ** shift),
             y: Math.floor(coord.y / 2 ** shift),
         };
+        if (!headerCoversTile(header, at)) continue;
 
-        // Archives are configured most detailed first, so the first match wins.
-        // A header only states an archive's bounding box, which is coarser than
-        // the data it holds: a US extract's bbox reaches into Canada and Mexico
-        // without containing a single tile there. So an empty answer from a
-        // covering archive is NOT authoritative — the next archive must still be
-        // asked, or a detailed tier would shadow every coarser one across the
-        // slack in its own bounds.
-        let answered = false;
-        for (const archive of open) {
-            const header = await headerFor(archive);
-            if (!header || !headerCoversTile(header, at)) continue;
-            try {
-                const result = await archive.tiles.getZxy(at.z, at.x, at.y);
-                if (result?.data) {
-                    return { data: result.data, archive: archive.name, z: at.z };
-                }
-                // Read cleanly, genuinely no tile here.
-                answered = true;
-            } catch (err) {
-                // A failed read says nothing about coverage, so it must not
-                // count as an answer.
-                console.error(
-                    `[pmtiles] ${archive.name} failed at ${at.z}/${at.x}/${at.y}:`,
-                    err instanceof Error ? err.message : err,
-                );
+        try {
+            const result = await archive.tiles.getZxy(at.z, at.x, at.y);
+            if (result?.data) {
+                return { data: result.data, archive: archive.name, z: at.z };
             }
+            // Covered by the box but no tile here: this archive does not hold
+            // this ground. Ask the next one.
+        } catch (err) {
+            console.error(
+                `[pmtiles] ${archive.name} failed at ${at.z}/${at.x}/${at.y}:`,
+                err instanceof Error ? err.message : err,
+            );
         }
-
-        // Every archive that covers this tile agreed it is empty — ocean, or
-        // desert. Retrying at a coarser zoom would only widen the area and find
-        // the same nothing, so stop here rather than walking down to z0.
-        if (answered) return null;
     }
     return null;
 }
