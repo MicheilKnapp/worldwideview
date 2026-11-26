@@ -2,8 +2,12 @@ services:
   wwv:
     image: ghcr.io/silvertakana/worldwideview:demo
     pull_policy: always
+    # Loopback by default: behind Coolify, Traefik reaches the app over the
+    # Docker network, so publishing 3000 on every interface only adds an
+    # unencrypted way in that bypasses HTTPS (and Docker bypasses UFW).
+    # To reach it from your LAN without a proxy, set WWV_BIND_ADDR=0.0.0.0.
     ports:
-      - "3000:3000"
+      - "${WWV_BIND_ADDR:-127.0.0.1}:3000:3000"
     volumes:
       - wwv-data:/app/data
     env_file:
