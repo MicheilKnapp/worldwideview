@@ -31,7 +31,9 @@ services:
       - "ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY:-local_dev_encryption_key_change_in_prod}"
       - "WWV_DEMO_ADMIN_SECRET=${WWV_DEMO_ADMIN_SECRET:-}"
       - "WWV_BRIDGE_TOKEN=${WWV_BRIDGE_TOKEN:-}"
-      - "DATABASE_URL=postgresql://postgres:postgres@db:5432/worldwideview?schema=public"
+      # Password comes from POSTGRES_PASSWORD (set it in Coolify). Use a value
+      # without URL-special characters (@ : / # ?) - hex is safest.
+      - "DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/worldwideview?schema=public"
       # ── Legal pages (runtime; NOT build args, or they vanish after build).
       # Values come from Coolify's Environment Variables UI. While OPERATOR,
       # CONTACT_EMAIL or JURISDICTION is empty, /legal/* shows a notice saying
@@ -60,10 +62,16 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      # The "postgres" fallback is for local dev only. Production must set
+      # POSTGRES_PASSWORD. It only takes effect when the volume is first created.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: worldwideview
+    # Loopback only. Publishing on all interfaces put this database on the
+    # internet with the default password, and it was taken over (2026-11-20).
+    # The app reaches it as db:5432 on the compose network; local dev
+    # (scripts/boot-db.mjs) reaches it via 127.0.0.1.
     ports:
-      - "${WWV_DB_PORT:-5432}:5432"
+      - "127.0.0.1:${WWV_DB_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
